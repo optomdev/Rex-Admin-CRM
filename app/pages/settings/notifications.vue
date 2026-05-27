@@ -21,26 +21,21 @@ const sections = [{
   }]
 }, {
   title: 'Account updates',
-  description: 'Receive updates about Nuxt UI.',
+  description: 'Choose which CRM events should reach the admin inbox.',
   fields: [{
     name: 'weekly_digest',
     label: 'Weekly digest',
-    description: 'Receive a weekly digest of news.'
+    description: 'Receive a weekly summary of tickets, charges, and onboarding blockers.'
   }, {
     name: 'product_updates',
-    label: 'Product updates',
-    description: 'Receive a monthly email with all new features and updates.'
+    label: 'Release updates',
+    description: 'Receive updates when GitHub releases are imported or marked for rollout.'
   }, {
     name: 'important_updates',
     label: 'Important updates',
-    description: 'Receive emails about important updates like security fixes, maintenance, etc.'
+    description: 'Receive urgent ticket, overdue charge, and webhook failure alerts.'
   }]
 }]
-
-async function onChange() {
-  // Do something with data
-  console.log(state)
-}
 </script>
 
 <template>
@@ -63,7 +58,6 @@ async function onChange() {
       >
         <USwitch
           v-model="state[field.name]"
-          @update:model-value="onChange"
         />
       </UFormField>
     </UPageCard>

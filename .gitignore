@@ -12,6 +12,9 @@ node_modules
 # Logs
 logs
 *.log
+.codex-logs
+.codex-screenshots
+.playwright-mcp
 
 # Misc
 .DS_Store

@@ -1,58 +1,23 @@
 const members = [{
-  name: 'Anthony Fu',
-  username: 'antfu',
-  role: 'member',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/antfu' }
-}, {
-  name: 'Baptiste Leproux',
-  username: 'larbish',
-  role: 'member',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/larbish' }
-}, {
-  name: 'Benjamin Canac',
-  username: 'benjamincanac',
+  name: 'Dan',
+  username: 'dan',
   role: 'owner',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/benjamincanac' }
+  avatar: { icon: 'i-lucide-user-round' }
 }, {
-  name: 'Céline Dumerc',
-  username: 'celinedumerc',
+  name: 'Support Desk',
+  username: 'support',
   role: 'member',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/celinedumerc' }
+  avatar: { icon: 'i-lucide-life-buoy' }
 }, {
-  name: 'Daniel Roe',
-  username: 'danielroe',
+  name: 'Delivery Lead',
+  username: 'delivery',
   role: 'member',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/danielroe' }
+  avatar: { icon: 'i-lucide-list-checks' }
 }, {
-  name: 'Farnabaz',
-  username: 'farnabaz',
+  name: 'Finance Admin',
+  username: 'finance',
   role: 'member',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/farnabaz' }
-}, {
-  name: 'Ferdinand Coumau',
-  username: 'FerdinandCoumau',
-  role: 'member',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/FerdinandCoumau' }
-}, {
-  name: 'Hugo Richard',
-  username: 'hugorcd',
-  role: 'owner',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/hugorcd' }
-}, {
-  name: 'Pooya Parsa',
-  username: 'pi0',
-  role: 'member',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/pi0' }
-}, {
-  name: 'Sarah Moriceau',
-  username: 'SarahM19',
-  role: 'member',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/SarahM19' }
-}, {
-  name: 'Sébastien Chopin',
-  username: 'Atinux',
-  role: 'owner',
-  avatar: { src: 'https://ipx.nuxt.com/f_auto,s_192x192/gh_avatar/atinux' }
+  avatar: { icon: 'i-lucide-receipt' }
 }]
 
 export default eventHandler(async () => {
