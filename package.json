@@ -30,6 +30,8 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.15.2",
+    "@nuxtjs/supabase": "^2.0.9",
+    "baseline-browser-mapping": "^2.10.32",
     "eslint": "^10.4.0",
     "typescript": "^6.0.3",
     "vue-tsc": "^3.3.0"

@@ -2,6 +2,7 @@
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
+    '@nuxtjs/supabase',
     '@nuxt/ui',
     '@vueuse/nuxt'
   ],
@@ -13,10 +14,14 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   runtimeConfig: {
-    supabaseServiceRoleKey: '',
+    supabaseSecretKey: '',
     rexWebhookSecret: '',
     crmWebhookSecret: '',
     rexCallbackUrl: '',
+    resendApiKey: '',
+    supportFromEmail: '',
+    supportFromName: 'Rex Support',
+    supportReplyToEmail: '',
     githubToken: '',
     githubOwner: '',
     githubRepo: '',
@@ -42,5 +47,24 @@ export default defineNuxtConfig({
         braceStyle: '1tbs'
       }
     }
+  },
+
+  supabase: {
+    url: process.env.NUXT_PUBLIC_SUPABASE_URL,
+    key: process.env.NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    secretKey: process.env.NUXT_SUPABASE_SECRET_KEY,
+    redirect: true,
+    redirectOptions: {
+      login: '/login',
+      callback: '/confirm',
+      exclude: ['/api/webhooks/rex'],
+      saveRedirectToCookie: true
+    },
+    cookieOptions: {
+      maxAge: 60 * 60 * 8,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production'
+    },
+    types: false
   }
 })

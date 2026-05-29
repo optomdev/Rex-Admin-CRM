@@ -11,6 +11,44 @@ const metricColor = (tone: DashboardSummary['metrics'][number]['tone']) => {
   if (tone === 'primary') return 'primary'
   return 'neutral'
 }
+
+const activeLaunches = computed(() => data.value?.onboarding.filter(project => !['live', 'paused'].includes(project.status)) ?? [])
+const atRiskCustomers = computed(() => data.value?.customers.filter(customer => customer.status === 'at_risk' || customer.health_score < 65) ?? [])
+const openCharges = computed(() => data.value?.charges.filter(charge => ['open', 'invoice_sent', 'overdue'].includes(charge.billing_status)) ?? [])
+
+const commandFeed = computed(() => [{
+  label: 'Live tickets',
+  value: `${data.value?.tickets.length ?? 0}`,
+  detail: 'Latest support signals',
+  icon: 'i-lucide-life-buoy',
+  to: '/tickets',
+  color: 'primary' as const
+}, {
+  label: 'Launches',
+  value: `${activeLaunches.value.length}`,
+  detail: 'Onboarding in motion',
+  icon: 'i-lucide-rocket',
+  to: '/onboarding',
+  color: 'secondary' as const
+}, {
+  label: 'Attention',
+  value: `${atRiskCustomers.value.length}`,
+  detail: 'Customer health watch',
+  icon: atRiskCustomers.value.length ? 'i-lucide-heart-pulse' : 'i-lucide-shield-check',
+  to: '/customers',
+  color: atRiskCustomers.value.length ? 'warning' as const : 'success' as const
+}, {
+  label: 'Ledger',
+  value: `${openCharges.value.length}`,
+  detail: 'Open charge items',
+  icon: 'i-lucide-receipt',
+  to: '/charges',
+  color: 'warning' as const
+}])
+
+function compactTitle(text?: string | null) {
+  return text || 'Untitled item'
+}
 </script>
 
 <template>
@@ -36,6 +74,32 @@ const metricColor = (tone: DashboardSummary['metrics'][number]['tone']) => {
     </template>
 
     <template #body>
+      <div class="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <NuxtLink
+          v-for="item in commandFeed"
+          :key="item.label"
+          :to="item.to"
+          class="rounded-lg border border-default bg-default p-4 shadow-xs transition hover:bg-elevated/60 hover:ring-2 hover:ring-primary/20"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm text-muted">
+                {{ item.label }}
+              </p>
+              <p class="mt-2 text-2xl font-semibold text-highlighted">
+                {{ item.value }}
+              </p>
+              <p class="mt-1 truncate text-sm text-muted">
+                {{ item.detail }}
+              </p>
+            </div>
+            <UBadge :color="item.color" variant="subtle" square>
+              <UIcon :name="item.icon" class="size-4" />
+            </UBadge>
+          </div>
+        </NuxtLink>
+      </div>
+
       <div class="grid gap-4 lg:grid-cols-4">
         <UCard
           v-for="metric in data?.metrics"
@@ -89,7 +153,7 @@ const metricColor = (tone: DashboardSummary['metrics'][number]['tone']) => {
                   <span class="text-sm text-muted">{{ ticket.customer?.name || 'Unlinked customer' }}</span>
                 </div>
                 <p class="mt-2 truncate font-medium text-highlighted">
-                  {{ ticket.subject || ticket.description }}
+                  {{ compactTitle(ticket.subject || ticket.description) }}
                 </p>
                 <p class="mt-1 truncate text-sm text-muted">
                   {{ ticket.reporter_name }} - {{ ticket.page_url }}

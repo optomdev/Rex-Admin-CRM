@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { sendRexCallback } from '../../../utils/rexCallback'
 import { isSupabaseConfigured, serverSupabase } from '../../../utils/supabase'
 
 const bodySchema = z.object({
@@ -26,11 +25,21 @@ export default eventHandler(async (event) => {
   }
 
   const supabase = serverSupabase()
+  const current = await supabase
+    .from('tickets')
+    .select('id, status, customer_id, subject, description, rex_ticket_id')
+    .eq('id', ticketId)
+    .single()
+
+  if (current.error) {
+    throw createError({ statusCode: 404, statusMessage: current.error.message })
+  }
+
   const ticket = await supabase
     .from('tickets')
     .update({ status: body.status })
     .eq('id', ticketId)
-    .select('id, rex_ticket_id, rex_local_table_id, status')
+    .select('id, status, customer_id, subject, description, rex_ticket_id')
     .single()
 
   if (ticket.error) {
@@ -44,55 +53,25 @@ export default eventHandler(async (event) => {
     details: { status: body.status, note: body.note ?? null }
   })
 
-  await supabase.from('webhook_deliveries').insert({
-    ticket_id: ticket.data.id,
-    target: 'rex',
-    event_type: 'support_ticket.status_changed',
-    idempotency_key: idempotencyKey,
-    payload: {
-      crm_ticket_id: ticket.data.id,
-      rex_ticket_id: ticket.data.rex_ticket_id,
-      rex_local_table_id: ticket.data.rex_local_table_id,
-      status: body.status,
-      note: body.note ?? null
-    }
-  })
-
-  const callback = await sendRexCallback({
-    eventType: 'support_ticket.status_changed',
-    idempotencyKey,
-    payload: {
-      crm_ticket_id: ticket.data.id,
-      rex_ticket_id: ticket.data.rex_ticket_id,
-      rex_local_table_id: ticket.data.rex_local_table_id,
-      status: body.status,
-      note: body.note ?? null
-    }
-  })
-
-  await supabase
-    .from('webhook_deliveries')
-    .update({
-      status: callback.ok ? 'sent' : 'failed',
-      attempts: 1,
-      last_error: callback.error,
-      last_attempted_at: new Date().toISOString()
+  if (ticket.data.customer_id && current.data.status !== body.status) {
+    await supabase.from('customer_timeline_items').insert({
+      customer_id: ticket.data.customer_id,
+      item_type: 'ticket',
+      title: `Ticket marked ${body.status.replaceAll('_', ' ')}`,
+      body: body.note || ticket.data.subject || ticket.data.description,
+      related_table: 'tickets',
+      related_id: ticket.data.id,
+      metadata: {
+        rex_ticket_id: ticket.data.rex_ticket_id,
+        previous_status: current.data.status,
+        status: body.status
+      }
     })
-    .eq('target', 'rex')
-    .eq('idempotency_key', idempotencyKey)
-
-  await supabase
-    .from('tickets')
-    .update({
-      last_synced_to_rex_at: callback.ok ? new Date().toISOString() : null,
-      last_sync_error: callback.ok ? null : callback.error
-    })
-    .eq('id', ticket.data.id)
+  }
 
   return {
-    ok: callback.ok,
-    retryable: !callback.ok,
-    callback,
+    ok: true,
+    retryable: false,
     idempotency_key: idempotencyKey
   }
 })

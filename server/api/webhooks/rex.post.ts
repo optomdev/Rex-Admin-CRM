@@ -7,6 +7,10 @@ const rexTicketCreatedSchema = z.object({
   event: z.literal('support_ticket.created'),
   occurred_at: z.string().optional(),
   ticket: z.object({
+    customer_identifier: z.string().optional(),
+    deployment_name: z.string().optional(),
+    rex_project_ref: z.string().optional(),
+    rex_supabase_url: z.string().optional(),
     rex_ticket_id: z.string().optional(),
     local_table_id: z.union([z.string(), z.number()]).optional(),
     reporter_name: z.string().optional(),
@@ -55,6 +59,69 @@ export default eventHandler(async (event) => {
   }
 
   const supabase = serverSupabase()
+  const customerIdentifier = payload.ticket.customer_identifier?.trim() || null
+  const rexProjectRef = payload.ticket.rex_project_ref?.trim() || null
+
+  let customerId: string | null = null
+  let customerDeploymentId: string | null = null
+
+  if (customerIdentifier) {
+    const deployment = await supabase
+      .from('customer_deployments')
+      .select('id, customer_id')
+      .eq('customer_identifier', customerIdentifier)
+      .maybeSingle()
+
+    if (deployment.error) {
+      throw createError({ statusCode: 500, statusMessage: deployment.error.message })
+    }
+
+    if (deployment.data) {
+      customerId = deployment.data.customer_id
+      customerDeploymentId = deployment.data.id
+    } else {
+      const customer = await supabase
+        .from('customers')
+        .select('id')
+        .eq('customer_identifier', customerIdentifier)
+        .maybeSingle()
+
+      if (customer.error) {
+        throw createError({ statusCode: 500, statusMessage: customer.error.message })
+      }
+
+      customerId = customer.data?.id ?? null
+    }
+  }
+
+  if (!customerId && rexProjectRef) {
+    const deployment = await supabase
+      .from('customer_deployments')
+      .select('id, customer_id')
+      .eq('rex_project_ref', rexProjectRef)
+      .maybeSingle()
+
+    if (deployment.error) {
+      throw createError({ statusCode: 500, statusMessage: deployment.error.message })
+    }
+
+    if (deployment.data) {
+      customerId = deployment.data.customer_id
+      customerDeploymentId = deployment.data.id
+    } else {
+      const customer = await supabase
+        .from('customers')
+        .select('id')
+        .eq('rex_project_ref', rexProjectRef)
+        .maybeSingle()
+
+      if (customer.error) {
+        throw createError({ statusCode: 500, statusMessage: customer.error.message })
+      }
+
+      customerId = customer.data?.id ?? null
+    }
+  }
 
   const existingEvent = await supabase
     .from('webhook_events')
@@ -93,6 +160,11 @@ export default eventHandler(async (event) => {
   }
 
   const ticketValues = {
+    customer_id: customerId,
+    customer_deployment_id: customerDeploymentId,
+    customer_identifier: customerIdentifier,
+    rex_project_ref: rexProjectRef,
+    rex_supabase_url: payload.ticket.rex_supabase_url ?? null,
     rex_ticket_id: payload.ticket.rex_ticket_id ?? null,
     rex_local_table_id: payload.ticket.local_table_id?.toString() ?? null,
     reporter_name: payload.ticket.reporter_name ?? null,
@@ -135,6 +207,34 @@ export default eventHandler(async (event) => {
     idempotency_key: idempotencyKey,
     details: payload
   })
+
+  if (customerId) {
+    if (customerDeploymentId) {
+      await supabase
+        .from('customer_deployments')
+        .update({
+          last_seen_at: payload.occurred_at ?? new Date().toISOString(),
+          health_status: 'healthy'
+        })
+        .eq('id', customerDeploymentId)
+    }
+
+    await supabase.from('customer_timeline_items').insert({
+      customer_id: customerId,
+      item_type: 'ticket',
+      title: 'Support ticket received',
+      body: payload.ticket.subject || payload.ticket.description,
+      related_table: 'tickets',
+      related_id: ticketWrite.data.id,
+      metadata: {
+        rex_ticket_id: payload.ticket.rex_ticket_id ?? null,
+        priority: payload.ticket.priority,
+        reporter_email: payload.ticket.reporter_email ?? null,
+        customer_deployment_id: customerDeploymentId,
+        idempotency_key: idempotencyKey
+      }
+    })
+  }
 
   await supabase
     .from('webhook_events')

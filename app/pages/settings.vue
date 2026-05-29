@@ -11,8 +11,8 @@ const links = [[{
   icon: 'i-lucide-shield-check',
   to: '/settings/security'
 }, {
-  label: 'Notifications',
-  icon: 'i-lucide-bell',
+  label: 'System Health',
+  icon: 'i-lucide-activity',
   to: '/settings/notifications'
 }]] satisfies NavigationMenuItem[][]
 </script>
@@ -33,7 +33,7 @@ const links = [[{
     </template>
 
     <template #body>
-      <div class="flex flex-col gap-4 sm:gap-6 lg:gap-12 w-full lg:max-w-2xl mx-auto">
+      <div class="flex w-full flex-col gap-4 sm:gap-6 lg:max-w-6xl lg:mx-auto">
         <NuxtPage />
       </div>
     </template>

@@ -16,6 +16,9 @@ export type TaskStatus = 'todo' | 'doing' | 'done' | 'blocked'
 export type ChargeStatus = 'draft' | 'open' | 'invoice_sent' | 'paid' | 'overdue' | 'void'
 export type ChargeType = 'monthly' | 'onboarding' | 'ad_hoc' | 'credit'
 export type RolloutStatus = 'not_started' | 'scheduled' | 'deployed' | 'blocked' | 'rolled_back'
+export type DeploymentEnvironment = 'demo' | 'staging' | 'production' | 'training'
+export type DeploymentStatus = 'provisioning' | 'active' | 'maintenance' | 'paused' | 'retired' | 'error'
+export type DeploymentHealthStatus = 'unknown' | 'healthy' | 'degraded' | 'down'
 
 export interface CrmCustomer {
   id: string
@@ -23,6 +26,9 @@ export interface CrmCustomer {
   status: CustomerStatus
   health_score: number
   primary_domain?: string | null
+  customer_identifier?: string | null
+  rex_project_ref?: string | null
+  rex_supabase_url?: string | null
   commercial_notes?: string | null
   tags: string[]
   recurring_monthly_amount: number
@@ -31,9 +37,71 @@ export interface CrmCustomer {
   updated_at: string
 }
 
+export interface CustomerContact {
+  id: string
+  customer_id: string
+  name: string
+  email?: string | null
+  phone?: string | null
+  role?: string | null
+  is_primary: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerBranch {
+  id: string
+  customer_id: string
+  name: string
+  address?: string | null
+  postcode?: string | null
+  branch_code?: string | null
+  status: 'planned' | 'active' | 'paused' | 'closed'
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerDeployment {
+  id: string
+  customer_id: string
+  name: string
+  environment: DeploymentEnvironment
+  status: DeploymentStatus
+  health_status: DeploymentHealthStatus
+  customer_identifier?: string | null
+  rex_project_ref?: string | null
+  supabase_url?: string | null
+  app_url?: string | null
+  region?: string | null
+  deployed_release_id?: string | null
+  deployed_version?: string | null
+  last_seen_at?: string | null
+  is_primary: boolean
+  notes?: string | null
+  created_at: string
+  updated_at: string
+  customer?: Pick<CrmCustomer, 'id' | 'name' | 'status' | 'health_score'> | null
+  release?: Pick<Release, 'id' | 'version' | 'title'> | null
+}
+
+export interface CustomerDetail {
+  customer: CrmCustomer
+  contacts: CustomerContact[]
+  branches: CustomerBranch[]
+  deployments: CustomerDeployment[]
+  tickets: CrmTicket[]
+  onboarding: OnboardingProject[]
+  charges: Charge[]
+  timeline: TimelineItem[]
+}
+
 export interface CrmTicket {
   id: string
   customer_id?: string | null
+  customer_deployment_id?: string | null
+  customer_identifier?: string | null
+  rex_project_ref?: string | null
+  rex_supabase_url?: string | null
   rex_ticket_id?: string | null
   rex_local_table_id?: string | null
   reporter_name?: string | null
@@ -47,6 +115,8 @@ export interface CrmTicket {
   screenshot_metadata: Record<string, unknown>
   environment: Record<string, unknown>
   app_version?: string | null
+  last_synced_to_rex_at?: string | null
+  last_sync_error?: string | null
   created_at: string
   updated_at: string
   customer?: Pick<CrmCustomer, 'id' | 'name' | 'status' | 'health_score'> | null
@@ -60,7 +130,23 @@ export interface TicketMessage {
   author_email?: string | null
   body: string
   delivery_status: 'stored' | 'pending' | 'sent' | 'failed'
+  metadata: Record<string, unknown>
   created_at: string
+}
+
+export interface TicketEvent {
+  id: string
+  ticket_id?: string | null
+  event_type: string
+  idempotency_key?: string | null
+  details: Record<string, unknown>
+  created_at: string
+}
+
+export interface TicketDetail {
+  ticket: CrmTicket
+  messages: TicketMessage[]
+  events: TicketEvent[]
 }
 
 export interface OnboardingProject {
@@ -81,10 +167,16 @@ export interface OnboardingTask {
   id: string
   project_id: string
   title: string
+  description?: string | null
   status: TaskStatus
   owner?: string | null
   due_date?: string | null
   sort_order: number
+}
+
+export interface OnboardingDetail {
+  project: OnboardingProject
+  tasks: OnboardingTask[]
 }
 
 export interface Charge {
@@ -126,10 +218,15 @@ export interface CustomerReleaseStatus {
   release?: Pick<Release, 'id' | 'version' | 'title'> | null
 }
 
+export interface ReleaseDetail {
+  release: Release
+  rollouts: CustomerReleaseStatus[]
+}
+
 export interface TimelineItem {
   id: string
   customer_id: string
-  item_type: 'ticket' | 'message' | 'onboarding' | 'charge' | 'release' | 'note'
+  item_type: 'ticket' | 'message' | 'onboarding' | 'charge' | 'release' | 'deployment' | 'note'
   title: string
   body?: string | null
   occurred_at: string
@@ -154,4 +251,51 @@ export interface DashboardSummary {
   charges: Charge[]
   releases: Release[]
   timeline: TimelineItem[]
+}
+
+export interface WebhookEvent {
+  id: string
+  direction: 'inbound' | 'outbound'
+  source: string
+  event_type: string
+  idempotency_key: string
+  signature_valid: boolean
+  processed_at?: string | null
+  error?: string | null
+  created_at: string
+}
+
+export interface WebhookDelivery {
+  id: string
+  ticket_id?: string | null
+  target: string
+  event_type: string
+  idempotency_key: string
+  status: 'pending' | 'sent' | 'failed'
+  attempts: number
+  last_error?: string | null
+  last_attempted_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface FailedTicketMessage extends TicketMessage {
+  ticket?: Pick<CrmTicket, 'id' | 'subject' | 'rex_ticket_id' | 'reporter_email'> & {
+    customer?: Pick<CrmCustomer, 'id' | 'name'> | null
+  } | null
+}
+
+export interface SystemHealthMetric {
+  label: string
+  value: string
+  detail: string
+  icon: string
+  tone: 'success' | 'warning' | 'error' | 'neutral' | 'primary'
+}
+
+export interface SystemHealthSummary {
+  metrics: SystemHealthMetric[]
+  recent_webhooks: WebhookEvent[]
+  failed_messages: FailedTicketMessage[]
+  webhook_deliveries: WebhookDelivery[]
 }

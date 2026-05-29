@@ -15,15 +15,16 @@ const filteredMembers = computed(() => {
 <template>
   <div>
     <UPageCard
-      title="Members"
-      description="Invite new members by email address."
+      title="Admin Access"
+      description="V1 is intentionally locked to one Supabase Auth admin user."
       variant="naked"
       orientation="horizontal"
       class="mb-4"
     >
-      <UButton
-        label="Invite people"
-        color="neutral"
+      <UBadge
+        label="Single admin V1"
+        color="success"
+        variant="subtle"
         class="w-fit lg:ms-auto"
       />
     </UPageCard>

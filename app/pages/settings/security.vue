@@ -2,31 +2,58 @@
 import * as z from 'zod'
 import type { FormError } from '@nuxt/ui'
 
+const supabase = useSupabaseClient()
+const toast = useToast()
+const saving = ref(false)
+
 const passwordSchema = z.object({
-  current: z.string().min(8, 'Must be at least 8 characters'),
   new: z.string().min(8, 'Must be at least 8 characters')
 })
 
 type PasswordSchema = z.output<typeof passwordSchema>
 
 const password = reactive<Partial<PasswordSchema>>({
-  current: '',
   new: ''
 })
 
-const validate = (state: Partial<PasswordSchema>): FormError[] => {
+const validate = (_state: Partial<PasswordSchema>): FormError[] => {
   const errors: FormError[] = []
-  if (state.current && state.new && state.current === state.new) {
-    errors.push({ name: 'new', message: 'Passwords must be different' })
-  }
   return errors
+}
+
+async function updatePassword() {
+  saving.value = true
+
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: password.new
+    })
+
+    if (error) throw error
+
+    password.new = ''
+    toast.add({
+      title: 'Password updated',
+      color: 'success',
+      icon: 'i-lucide-check'
+    })
+  } catch (error) {
+    toast.add({
+      title: 'Could not update password',
+      description: error instanceof Error ? error.message : 'Try signing in again first.',
+      color: 'error',
+      icon: 'i-lucide-alert-circle'
+    })
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
 <template>
   <UPageCard
     title="Password"
-    description="Confirm your current password before setting a new one."
+    description="Update the Supabase Auth password for the current CRM admin session."
     variant="subtle"
   >
     <UForm
@@ -34,16 +61,8 @@ const validate = (state: Partial<PasswordSchema>): FormError[] => {
       :state="password"
       :validate="validate"
       class="flex flex-col gap-4 max-w-xs"
+      @submit="updatePassword"
     >
-      <UFormField name="current">
-        <UInput
-          v-model="password.current"
-          type="password"
-          placeholder="Current password"
-          class="w-full"
-        />
-      </UFormField>
-
       <UFormField name="new">
         <UInput
           v-model="password.new"
@@ -53,17 +72,24 @@ const validate = (state: Partial<PasswordSchema>): FormError[] => {
         />
       </UFormField>
 
-      <UButton label="Update" class="w-fit" type="submit" />
+      <UButton
+        label="Update password"
+        icon="i-lucide-key-round"
+        class="w-fit"
+        type="submit"
+        :loading="saving"
+      />
     </UForm>
   </UPageCard>
 
   <UPageCard
-    title="Account"
-    description="No longer want to use our service? You can delete your account here. This action is not reversible. All information related to this account will be deleted permanently."
-    class="bg-linear-to-tl from-error/10 from-5% to-default"
+    title="Session Boundary"
+    description="CRM pages and API routes require a Supabase Auth session. The signed Rex webhook remains available without a user session."
+    variant="subtle"
+    icon="i-lucide-shield-check"
   >
     <template #footer>
-      <UButton label="Delete account" color="error" />
+      <UBadge label="Single admin V1" color="success" variant="subtle" />
     </template>
   </UPageCard>
 </template>

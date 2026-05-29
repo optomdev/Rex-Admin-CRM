@@ -2,6 +2,15 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
 
 const open = ref(false)
+const supabase = useSupabaseClient()
+const user = useSupabaseUser()
+
+const adminLabel = computed(() => user.value?.email || 'Admin')
+
+const signOut = async () => {
+  await supabase.auth.signOut()
+  await navigateTo('/login')
+}
 
 const links = [[{
   label: 'Control',
@@ -21,6 +30,13 @@ const links = [[{
   label: 'Customers',
   icon: 'i-lucide-users',
   to: '/customers',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
+  label: 'Deployments',
+  icon: 'i-lucide-cloud',
+  to: '/deployments',
   onSelect: () => {
     open.value = false
   }
@@ -126,14 +142,24 @@ const groups = computed(() => [{
       <template #footer="{ collapsed }">
         <div class="flex items-center gap-3 px-2 py-1">
           <UAvatar icon="i-lucide-user-round" size="sm" />
-          <div v-if="!collapsed" class="min-w-0">
+          <div v-if="!collapsed" class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium text-highlighted">
-              Dan
+              {{ adminLabel }}
             </p>
             <p class="truncate text-xs text-muted">
               Single admin V1
             </p>
           </div>
+          <UTooltip text="Sign out">
+            <UButton
+              icon="i-lucide-log-out"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              :aria-label="collapsed ? 'Sign out' : undefined"
+              @click="signOut"
+            />
+          </UTooltip>
         </div>
       </template>
     </UDashboardSidebar>
