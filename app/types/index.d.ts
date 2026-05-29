@@ -8,21 +8,26 @@ export interface Member {
 }
 
 export type CustomerStatus = 'prospect' | 'onboarding' | 'active' | 'at_risk' | 'paused' | 'churned'
+export type CustomerAccountType = 'internal' | 'prospect' | 'customer' | 'partner' | 'franchise'
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent'
 export type TicketStatus = 'new' | 'triage' | 'waiting_on_customer' | 'in_progress' | 'blocked' | 'resolved' | 'closed'
 export type MessageDirection = 'inbound' | 'outbound' | 'internal'
 export type OnboardingStatus = 'planning' | 'in_progress' | 'ready_for_go_live' | 'live' | 'blocked' | 'paused'
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'blocked'
+export type ComplianceDocumentStatus = 'not_started' | 'draft' | 'evidence_pending' | 'ready_for_review' | 'approved' | 'blocked'
+export type ComplianceEvidenceType = 'source_document' | 'supporting_evidence' | 'review_note' | 'screenshot' | 'signed_approval'
 export type ChargeStatus = 'draft' | 'open' | 'invoice_sent' | 'paid' | 'overdue' | 'void'
 export type ChargeType = 'monthly' | 'onboarding' | 'ad_hoc' | 'credit'
 export type RolloutStatus = 'not_started' | 'scheduled' | 'deployed' | 'blocked' | 'rolled_back'
 export type DeploymentEnvironment = 'demo' | 'staging' | 'production' | 'training'
 export type DeploymentStatus = 'provisioning' | 'active' | 'maintenance' | 'paused' | 'retired' | 'error'
 export type DeploymentHealthStatus = 'unknown' | 'healthy' | 'degraded' | 'down'
+export type DeploymentDeployStatus = 'unknown' | 'building' | 'deployed' | 'failed' | 'rolled_back'
 
 export interface CrmCustomer {
   id: string
   name: string
+  account_type: CustomerAccountType
   status: CustomerStatus
   health_score: number
   primary_domain?: string | null
@@ -75,12 +80,24 @@ export interface CustomerDeployment {
   region?: string | null
   deployed_release_id?: string | null
   deployed_version?: string | null
+  app_provider?: string | null
+  app_provider_project?: string | null
+  git_repo?: string | null
+  git_branch?: string | null
+  git_tag?: string | null
+  git_commit?: string | null
+  latest_migration_version?: string | null
+  latest_migration_name?: string | null
+  edge_functions_commit?: string | null
+  deploy_status: DeploymentDeployStatus
+  last_deployed_at?: string | null
+  last_smoke_tested_at?: string | null
   last_seen_at?: string | null
   is_primary: boolean
   notes?: string | null
   created_at: string
   updated_at: string
-  customer?: Pick<CrmCustomer, 'id' | 'name' | 'status' | 'health_score'> | null
+  customer?: Pick<CrmCustomer, 'id' | 'name' | 'account_type' | 'status' | 'health_score'> | null
   release?: Pick<Release, 'id' | 'version' | 'title'> | null
 }
 
@@ -119,7 +136,7 @@ export interface CrmTicket {
   last_sync_error?: string | null
   created_at: string
   updated_at: string
-  customer?: Pick<CrmCustomer, 'id' | 'name' | 'status' | 'health_score'> | null
+  customer?: Pick<CrmCustomer, 'id' | 'name' | 'account_type' | 'status' | 'health_score'> | null
 }
 
 export interface TicketMessage {
@@ -179,6 +196,41 @@ export interface OnboardingDetail {
   tasks: OnboardingTask[]
 }
 
+export interface ComplianceEvidenceFile {
+  id: string
+  document_id: string
+  bucket_id: string
+  storage_path: string
+  original_filename: string
+  content_type?: string | null
+  size_bytes: number
+  evidence_type: ComplianceEvidenceType
+  notes?: string | null
+  uploaded_by?: string | null
+  uploaded_at: string
+}
+
+export interface ComplianceDocument {
+  id: string
+  document_no: number
+  title: string
+  source_status: string
+  document_status: ComplianceDocumentStatus
+  owner: string
+  due_date?: string | null
+  evidence_required: string
+  residual_risk: string
+  go_live_blocker: boolean
+  source_folder_path?: string | null
+  source_markdown_path?: string | null
+  source_word_path?: string | null
+  notes?: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+  files?: ComplianceEvidenceFile[]
+}
+
 export interface Charge {
   id: string
   customer_id: string
@@ -204,6 +256,7 @@ export interface Release {
   known_issues?: string | null
   created_at: string
   updated_at: string
+  deployments?: CustomerDeployment[]
 }
 
 export interface CustomerReleaseStatus {
@@ -221,6 +274,7 @@ export interface CustomerReleaseStatus {
 export interface ReleaseDetail {
   release: Release
   rollouts: CustomerReleaseStatus[]
+  deployments: CustomerDeployment[]
 }
 
 export interface TimelineItem {

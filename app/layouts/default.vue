@@ -41,6 +41,13 @@ const links = [[{
     open.value = false
   }
 }, {
+  label: 'Compliance',
+  icon: 'i-lucide-folder-lock',
+  to: '/compliance',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
   label: 'Onboarding',
   icon: 'i-lucide-list-checks',
   to: '/onboarding',

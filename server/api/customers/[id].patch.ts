@@ -3,6 +3,7 @@ import { isSupabaseConfigured, serverSupabase } from '../../utils/supabase'
 
 const customerSchema = z.object({
   name: z.string().min(2),
+  account_type: z.enum(['internal', 'prospect', 'customer', 'partner', 'franchise']),
   status: z.enum(['prospect', 'onboarding', 'active', 'at_risk', 'paused', 'churned']),
   health_score: z.coerce.number().int().min(0).max(100),
   primary_domain: z.string().trim().optional().nullable(),
@@ -66,6 +67,7 @@ export default eventHandler(async (event) => {
 
   const currentCustomer = {
     name: current.data.name,
+    account_type: current.data.account_type,
     status: current.data.status,
     health_score: current.data.health_score,
     primary_domain: current.data.primary_domain,

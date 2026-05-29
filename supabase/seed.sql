@@ -1,6 +1,7 @@
 insert into public.customers (
   id,
   name,
+  account_type,
   status,
   health_score,
   primary_domain,
@@ -12,6 +13,7 @@ insert into public.customers (
   (
     '6b82aa63-2798-42f0-a9fd-d3d552f20a01',
     'Abbey Road Opticians',
+    'customer',
     'active',
     92,
     'abbeyroad.example',
@@ -23,6 +25,7 @@ insert into public.customers (
   (
     '8ce90a83-dbd4-4a22-86c2-92215efb0a21',
     'Northgate Eye Care',
+    'prospect',
     'onboarding',
     78,
     'northgate.example',
@@ -34,6 +37,7 @@ insert into public.customers (
   (
     '8d156422-2528-4671-b805-1048c9dd25aa',
     'Mersey Vision Clinic',
+    'customer',
     'at_risk',
     51,
     'merseyvision.example',

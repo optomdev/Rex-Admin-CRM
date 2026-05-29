@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CustomerDeployment } from '~/types'
+import type { CustomerAccountType, CustomerDeployment } from '~/types'
 
 type UiColor = 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'error' | 'neutral'
 
@@ -22,7 +22,15 @@ const filteredDeployments = computed(() => {
       deployment.rex_project_ref,
       deployment.supabase_url,
       deployment.release?.version,
-      deployment.deployed_version
+      deployment.deployed_version,
+      deployment.app_provider,
+      deployment.git_repo,
+      deployment.git_branch,
+      deployment.git_tag,
+      deployment.git_commit,
+      deployment.latest_migration_version,
+      deployment.latest_migration_name,
+      deployment.edge_functions_commit
     ].filter(Boolean).join(' ').toLowerCase()
 
     const matchesSearch = !search.value || haystack.includes(search.value.toLowerCase())
@@ -39,8 +47,9 @@ const needsAttention = computed(() => (deployments.value ?? []).filter((deployme
     || ['error', 'maintenance'].includes(deployment.status)
     || (!deployment.deployed_release_id && !deployment.deployed_version)
 }))
-const linkedVersions = computed(() => (deployments.value ?? []).filter(deployment => deployment.deployed_release_id || deployment.deployed_version))
+const linkedVersions = computed(() => (deployments.value ?? []).filter(deployment => deployment.deployed_release_id || deployment.deployed_version || deployment.git_tag || deployment.git_commit))
 const lastSeenCount = computed(() => (deployments.value ?? []).filter(deployment => deployment.last_seen_at).length)
+const trackedDevOps = computed(() => (deployments.value ?? []).filter(deployment => deployment.app_provider && deployment.git_branch && deployment.git_commit))
 
 const metrics = computed(() => [{
   label: 'Deployments',
@@ -60,6 +69,12 @@ const metrics = computed(() => [{
   detail: 'Release, tag, or commit attached',
   icon: 'i-lucide-git-branch',
   color: linkedVersions.value.length ? 'success' as const : 'neutral' as const
+}, {
+  label: 'DevOps Tracked',
+  value: `${trackedDevOps.value.length}`,
+  detail: 'Provider, branch, and commit recorded',
+  icon: 'i-lucide-git-pull-request',
+  color: trackedDevOps.value.length ? 'success' as const : 'neutral' as const
 }, {
   label: 'Seen',
   value: `${lastSeenCount.value}`,
@@ -82,11 +97,26 @@ function healthColor(healthStatus: CustomerDeployment['health_status']): UiColor
   return 'neutral'
 }
 
+function deployStatusColor(deployStatus: CustomerDeployment['deploy_status']): UiColor {
+  if (deployStatus === 'deployed') return 'success'
+  if (deployStatus === 'building') return 'warning'
+  if (deployStatus === 'failed' || deployStatus === 'rolled_back') return 'error'
+  return 'neutral'
+}
+
 function customerColor(customerStatus?: string): UiColor {
   if (customerStatus === 'active') return 'success'
   if (customerStatus === 'onboarding') return 'secondary'
   if (customerStatus === 'at_risk') return 'warning'
   if (customerStatus === 'churned') return 'error'
+  return 'neutral'
+}
+
+function accountTypeColor(accountType?: CustomerAccountType): UiColor {
+  if (accountType === 'internal') return 'info'
+  if (accountType === 'customer') return 'success'
+  if (accountType === 'partner') return 'secondary'
+  if (accountType === 'franchise') return 'warning'
   return 'neutral'
 }
 </script>
@@ -124,7 +154,7 @@ function customerColor(customerStatus?: string): UiColor {
     </template>
 
     <template #body>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <div
           v-for="metric in metrics"
           :key="metric.label"
@@ -153,7 +183,7 @@ function customerColor(customerStatus?: string): UiColor {
         <div
           v-for="deployment in filteredDeployments"
           :key="deployment.id"
-          class="grid gap-4 p-4 xl:grid-cols-[1.1fr_1fr_auto] xl:items-center"
+          class="grid gap-4 p-4 xl:grid-cols-[0.9fr_1fr_1.2fr_auto] xl:items-center"
         >
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
@@ -166,6 +196,7 @@ function customerColor(customerStatus?: string): UiColor {
               <UBadge :label="deployment.environment" color="neutral" variant="outline" />
               <UBadge :label="deployment.status" :color="statusColor(deployment.status)" variant="subtle" />
               <UBadge :label="deployment.health_status" :color="healthColor(deployment.health_status)" variant="subtle" />
+              <UBadge :label="deployment.deploy_status.replaceAll('_', ' ')" :color="deployStatusColor(deployment.deploy_status)" variant="subtle" />
             </div>
 
             <p class="mt-3 truncate text-base font-semibold text-highlighted">
@@ -184,13 +215,18 @@ function customerColor(customerStatus?: string): UiColor {
               <dd class="mt-1 truncate font-medium text-highlighted">
                 {{ deployment.customer?.name || 'Unlinked' }}
               </dd>
-              <UBadge
-                v-if="deployment.customer"
-                class="mt-2"
-                :label="deployment.customer.status.replaceAll('_', ' ')"
-                :color="customerColor(deployment.customer.status)"
-                variant="subtle"
-              />
+              <div v-if="deployment.customer" class="mt-2 flex flex-wrap gap-2">
+                <UBadge
+                  :label="deployment.customer.account_type.replaceAll('_', ' ')"
+                  :color="accountTypeColor(deployment.customer.account_type)"
+                  variant="subtle"
+                />
+                <UBadge
+                  :label="deployment.customer.status.replaceAll('_', ' ')"
+                  :color="customerColor(deployment.customer.status)"
+                  variant="subtle"
+                />
+              </div>
             </div>
             <div class="min-w-0">
               <dt class="text-muted">
@@ -208,10 +244,57 @@ function customerColor(customerStatus?: string): UiColor {
                 Version
               </dt>
               <dd class="mt-1 truncate font-medium text-highlighted">
-                {{ deployment.release?.version || deployment.deployed_version || 'Not linked' }}
+                {{ deployment.git_tag || deployment.release?.version || deployment.deployed_version || 'Not linked' }}
               </dd>
               <p class="mt-2 truncate text-xs text-muted">
-                {{ deployment.release?.title || deployment.notes || 'No rollout note' }}
+                {{ deployment.git_branch ? `${deployment.git_branch} @ ${deployment.git_commit || 'unknown'}` : deployment.release?.title || deployment.notes || 'No rollout note' }}
+              </p>
+            </div>
+          </dl>
+
+          <dl class="grid gap-3 text-sm sm:grid-cols-3 xl:grid-cols-4">
+            <div class="min-w-0">
+              <dt class="text-muted">
+                Provider
+              </dt>
+              <dd class="mt-1 truncate font-medium text-highlighted">
+                {{ deployment.app_provider || 'Not set' }}
+              </dd>
+              <p class="mt-2 truncate text-xs text-muted">
+                {{ deployment.app_provider_project || deployment.git_repo || 'No provider project' }}
+              </p>
+            </div>
+            <div class="min-w-0">
+              <dt class="text-muted">
+                Branch
+              </dt>
+              <dd class="mt-1 truncate font-medium text-highlighted">
+                {{ deployment.git_branch || 'Not set' }}
+              </dd>
+              <p class="mt-2 truncate text-xs text-muted">
+                {{ deployment.git_commit || 'No commit recorded' }}
+              </p>
+            </div>
+            <div class="min-w-0">
+              <dt class="text-muted">
+                Migration
+              </dt>
+              <dd class="mt-1 truncate font-medium text-highlighted">
+                {{ deployment.latest_migration_version || 'Not set' }}
+              </dd>
+              <p class="mt-2 truncate text-xs text-muted">
+                {{ deployment.latest_migration_name || 'No migration name' }}
+              </p>
+            </div>
+            <div class="min-w-0">
+              <dt class="text-muted">
+                Edge source
+              </dt>
+              <dd class="mt-1 truncate font-medium text-highlighted">
+                {{ deployment.edge_functions_commit || 'Not set' }}
+              </dd>
+              <p class="mt-2 truncate text-xs text-muted">
+                {{ deployment.last_smoke_tested_at ? `Smoke tested ${new Date(deployment.last_smoke_tested_at).toLocaleDateString('en-GB')}` : 'Smoke test not recorded' }}
               </p>
             </div>
           </dl>

@@ -51,6 +51,7 @@ const releaseState = reactive<ReleaseSchema>({
 
 const currentRelease = computed(() => releaseDetail.value?.release ?? null)
 const currentRollouts = computed(() => releaseDetail.value?.rollouts ?? [])
+const currentDeployments = computed(() => releaseDetail.value?.deployments ?? [])
 const deployedCount = computed(() => currentRollouts.value.filter(item => item.rollout_status === 'deployed').length)
 const blockedCount = computed(() => currentRollouts.value.filter(item => item.rollout_status === 'blocked').length)
 const rolloutProgress = computed(() => currentRollouts.value.length
@@ -61,6 +62,7 @@ const releaseStats = computed(() => {
   const rows = releases.value ?? []
   const latest = rows[0]
   const withKnownIssues = rows.filter(release => release.known_issues).length
+  const trackedDeployments = rows.reduce((sum, release) => sum + (release.deployments?.length ?? 0), 0)
 
   return [{
     label: 'Imported',
@@ -74,6 +76,12 @@ const releaseStats = computed(() => {
     detail: latest?.title ?? 'Run GitHub sync',
     icon: 'i-lucide-git-branch',
     color: 'secondary' as const
+  }, {
+    label: 'Deployed',
+    value: trackedDeployments.toString(),
+    detail: 'Tracked customer environments',
+    icon: 'i-lucide-cloud',
+    color: trackedDeployments ? 'success' as const : 'neutral' as const
   }, {
     label: 'Known Issues',
     value: withKnownIssues.toString(),
@@ -130,6 +138,33 @@ function rolloutColor(rolloutStatus: RolloutStatus) {
   if (rolloutStatus === 'blocked') return 'error'
   if (rolloutStatus === 'rolled_back') return 'warning'
   return 'neutral'
+}
+
+function deployStatusColor(deployStatus?: string | null) {
+  if (deployStatus === 'deployed') return 'success'
+  if (deployStatus === 'building') return 'warning'
+  if (deployStatus === 'failed' || deployStatus === 'rolled_back') return 'error'
+  return 'neutral'
+}
+
+function releaseDeployments(release: Release) {
+  return release.deployments ?? []
+}
+
+function releaseBranches(release: Release) {
+  const branches = releaseDeployments(release)
+    .map(deployment => deployment.git_branch)
+    .filter(Boolean)
+
+  return [...new Set(branches)]
+}
+
+function releaseProviders(release: Release) {
+  const providers = releaseDeployments(release)
+    .map(deployment => deployment.app_provider)
+    .filter(Boolean)
+
+  return [...new Set(providers)]
 }
 
 function ensureRolloutForm(rollout: CustomerReleaseStatus) {
@@ -329,7 +364,7 @@ async function saveReleaseDetails(event: FormSubmitEvent<ReleaseSchema>) {
     </template>
 
     <template #body>
-      <div class="mb-5 grid gap-3 md:grid-cols-3">
+      <div class="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div
           v-for="metric in releaseStats"
           :key="metric.label"
@@ -365,6 +400,12 @@ async function saveReleaseDetails(event: FormSubmitEvent<ReleaseSchema>) {
               <div class="flex flex-wrap items-center gap-2">
                 <UBadge :label="release.version" color="secondary" variant="subtle" />
                 <span class="text-sm text-muted">{{ publishedLabel(release.published_at) }}</span>
+                <UBadge
+                  v-if="releaseDeployments(release).length"
+                  :label="`${releaseDeployments(release).length} deployed`"
+                  color="success"
+                  variant="outline"
+                />
               </div>
               <h2 class="mt-3 font-semibold text-highlighted">
                 {{ release.title }}
@@ -372,6 +413,62 @@ async function saveReleaseDetails(event: FormSubmitEvent<ReleaseSchema>) {
               <p class="mt-2 line-clamp-3 text-sm text-muted">
                 {{ release.release_notes || 'No release notes stored yet.' }}
               </p>
+              <div
+                v-if="releaseDeployments(release).length"
+                class="mt-4 grid gap-3 rounded-md border border-default bg-elevated/40 p-3 text-xs sm:grid-cols-3"
+              >
+                <div>
+                  <p class="text-muted">
+                    Provider
+                  </p>
+                  <p class="mt-1 truncate font-medium text-highlighted">
+                    {{ releaseProviders(release).join(', ') || 'Not set' }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-muted">
+                    Branch
+                  </p>
+                  <p class="mt-1 truncate font-medium text-highlighted">
+                    {{ releaseBranches(release).join(', ') || 'Not set' }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-muted">
+                    Commit
+                  </p>
+                  <p class="mt-1 truncate font-medium text-highlighted">
+                    {{ releaseDeployments(release)[0]?.git_commit || 'Not set' }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-muted">
+                    Migration
+                  </p>
+                  <p class="mt-1 truncate font-medium text-highlighted">
+                    {{ releaseDeployments(release)[0]?.latest_migration_version || 'Not set' }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-muted">
+                    Edge source
+                  </p>
+                  <p class="mt-1 truncate font-medium text-highlighted">
+                    {{ releaseDeployments(release)[0]?.edge_functions_commit || 'Not set' }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-muted">
+                    Status
+                  </p>
+                  <UBadge
+                    class="mt-1"
+                    :label="releaseDeployments(release)[0]?.deploy_status?.replaceAll('_', ' ') || 'unknown'"
+                    :color="deployStatusColor(releaseDeployments(release)[0]?.deploy_status)"
+                    variant="subtle"
+                  />
+                </div>
+              </div>
               <UAlert
                 v-if="release.known_issues"
                 class="mt-4"
@@ -471,6 +568,108 @@ async function saveReleaseDetails(event: FormSubmitEvent<ReleaseSchema>) {
                 </div>
               </div>
             </div>
+
+            <section class="rounded-lg border border-default p-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 class="font-semibold text-highlighted">
+                    DevOps
+                  </h3>
+                  <p class="mt-1 text-sm text-muted">
+                    Provider, Git baseline, migrations, and Edge Function source for this version.
+                  </p>
+                </div>
+                <UBadge
+                  :label="`${currentDeployments.length} deployment${currentDeployments.length === 1 ? '' : 's'}`"
+                  color="neutral"
+                  variant="outline"
+                />
+              </div>
+
+              <div v-if="currentDeployments.length" class="mt-4 space-y-3">
+                <div
+                  v-for="deployment in currentDeployments"
+                  :key="deployment.id"
+                  class="rounded-md border border-default bg-elevated/40 p-3"
+                >
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="font-medium text-highlighted">
+                        {{ deployment.name }}
+                      </p>
+                      <p class="mt-1 truncate text-sm text-muted">
+                        {{ deployment.customer?.name || 'Unlinked customer' }} · {{ deployment.environment }}
+                      </p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <UBadge :label="deployment.app_provider || 'provider missing'" color="neutral" variant="outline" />
+                      <UBadge :label="deployment.deploy_status.replaceAll('_', ' ')" :color="deployStatusColor(deployment.deploy_status)" variant="subtle" />
+                    </div>
+                  </div>
+
+                  <dl class="mt-3 grid gap-3 text-xs sm:grid-cols-3">
+                    <div>
+                      <dt class="text-muted">
+                        Branch / tag
+                      </dt>
+                      <dd class="mt-1 truncate font-medium text-highlighted">
+                        {{ deployment.git_branch || 'Not set' }} / {{ deployment.git_tag || 'No tag' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Commit
+                      </dt>
+                      <dd class="mt-1 truncate font-medium text-highlighted">
+                        {{ deployment.git_commit || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Supabase
+                      </dt>
+                      <dd class="mt-1 truncate font-medium text-highlighted">
+                        {{ deployment.rex_project_ref || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Latest migration
+                      </dt>
+                      <dd class="mt-1 truncate font-medium text-highlighted">
+                        {{ deployment.latest_migration_version || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Migration name
+                      </dt>
+                      <dd class="mt-1 truncate font-medium text-highlighted">
+                        {{ deployment.latest_migration_name || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Edge source
+                      </dt>
+                      <dd class="mt-1 truncate font-medium text-highlighted">
+                        {{ deployment.edge_functions_commit || 'Not set' }}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+
+              <UAlert
+                v-else
+                class="mt-4"
+                icon="i-lucide-cloud-off"
+                color="neutral"
+                variant="subtle"
+                title="No deployment linked"
+                description="Mark a customer deployment with this release, tag, or commit to show the DevOps baseline here."
+              />
+            </section>
 
             <div class="overflow-hidden rounded-lg border border-default">
               <div class="grid gap-3 border-b border-default bg-elevated/40 px-4 py-3 text-xs font-medium uppercase text-muted lg:grid-cols-[1fr_12rem_10rem_8rem]">

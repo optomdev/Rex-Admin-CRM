@@ -53,7 +53,7 @@ export default eventHandler(async (event) => {
     supabase.from('customer_contacts').select('*').eq('customer_id', customerId).order('is_primary', { ascending: false }).order('updated_at', { ascending: false }),
     supabase.from('customer_branches').select('*').eq('customer_id', customerId).order('name', { ascending: true }),
     supabase.from('customer_deployments').select('*, release:releases(id,version,title)').eq('customer_id', customerId).order('is_primary', { ascending: false }).order('updated_at', { ascending: false }),
-    supabase.from('tickets').select('*, customer:customers(id,name,status,health_score)').eq('customer_id', customerId).order('updated_at', { ascending: false }).limit(8),
+    supabase.from('tickets').select('*, customer:customers(id,name,account_type,status,health_score)').eq('customer_id', customerId).order('updated_at', { ascending: false }).limit(8),
     supabase.from('onboarding_projects').select('*, customer:customers(id,name)').eq('customer_id', customerId).order('updated_at', { ascending: false }).limit(8),
     supabase.from('charges').select('*, customer:customers(id,name)').eq('customer_id', customerId).order('charge_date', { ascending: false }).limit(8),
     supabase.from('customer_timeline_items').select('*, customer:customers(id,name)').eq('customer_id', customerId).order('occurred_at', { ascending: false }).limit(12)

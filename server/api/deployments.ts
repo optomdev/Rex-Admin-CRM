@@ -19,6 +19,18 @@ export default eventHandler(async () => {
         region: 'eu-west-2',
         deployed_release_id: null,
         deployed_version: null,
+        app_provider: null,
+        app_provider_project: null,
+        git_repo: null,
+        git_branch: null,
+        git_tag: null,
+        git_commit: null,
+        latest_migration_version: null,
+        latest_migration_name: null,
+        edge_functions_commit: null,
+        deploy_status: 'unknown',
+        last_deployed_at: null,
+        last_smoke_tested_at: null,
         last_seen_at: null,
         is_primary: true,
         notes: null,
@@ -31,7 +43,7 @@ export default eventHandler(async () => {
 
   const { data, error } = await serverSupabase()
     .from('customer_deployments')
-    .select('*, customer:customers(id,name,status,health_score), release:releases(id,version,title)')
+    .select('*, customer:customers(id,name,account_type,status,health_score), release:releases(id,version,title)')
     .order('is_primary', { ascending: false })
     .order('updated_at', { ascending: false })
 

@@ -26,7 +26,7 @@ export default eventHandler(async (event) => {
   const [ticket, messages, events] = await Promise.all([
     supabase
       .from('tickets')
-      .select('*, customer:customers(id,name,status,health_score)')
+      .select('*, customer:customers(id,name,account_type,status,health_score)')
       .eq('id', ticketId)
       .single(),
     supabase

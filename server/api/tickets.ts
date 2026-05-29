@@ -8,7 +8,7 @@ export default eventHandler(async () => {
 
   const { data, error } = await serverSupabase()
     .from('tickets')
-    .select('*, customer:customers(id,name,status,health_score)')
+    .select('*, customer:customers(id,name,account_type,status,health_score)')
     .order('updated_at', { ascending: false })
 
   if (error) {

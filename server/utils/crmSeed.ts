@@ -13,6 +13,7 @@ const now = new Date().toISOString()
 export const sampleCustomers: CrmCustomer[] = [{
   id: '6b82aa63-2798-42f0-a9fd-d3d552f20a01',
   name: 'Abbey Road Opticians',
+  account_type: 'customer',
   status: 'active',
   health_score: 92,
   primary_domain: 'abbeyroad.example',
@@ -25,6 +26,7 @@ export const sampleCustomers: CrmCustomer[] = [{
 }, {
   id: '8ce90a83-dbd4-4a22-86c2-92215efb0a21',
   name: 'Northgate Eye Care',
+  account_type: 'prospect',
   status: 'onboarding',
   health_score: 78,
   primary_domain: 'northgate.example',
@@ -37,6 +39,7 @@ export const sampleCustomers: CrmCustomer[] = [{
 }, {
   id: '8d156422-2528-4671-b805-1048c9dd25aa',
   name: 'Mersey Vision Clinic',
+  account_type: 'customer',
   status: 'at_risk',
   health_score: 51,
   primary_domain: 'merseyvision.example',

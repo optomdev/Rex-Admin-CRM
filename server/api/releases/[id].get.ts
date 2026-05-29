@@ -17,6 +17,7 @@ export default eventHandler(async (event) => {
 
     return {
       release,
+      deployments: [],
       rollouts: sampleCustomers.map(customer => ({
         id: `${releaseId}-${customer.id}`,
         customer_id: customer.id,
@@ -39,12 +40,17 @@ export default eventHandler(async (event) => {
   }
 
   const supabase = serverSupabase()
-  const [release, customers, existingRollouts] = await Promise.all([
-    supabase
-      .from('releases')
-      .select('*')
-      .eq('id', releaseId)
-      .single(),
+  const release = await supabase
+    .from('releases')
+    .select('*')
+    .eq('id', releaseId)
+    .single()
+
+  if (release.error) {
+    throw createError({ statusCode: 404, statusMessage: release.error.message })
+  }
+
+  const [customers, existingRollouts, deployments] = await Promise.all([
     supabase
       .from('customers')
       .select('id')
@@ -52,14 +58,15 @@ export default eventHandler(async (event) => {
     supabase
       .from('customer_release_statuses')
       .select('customer_id')
-      .eq('release_id', releaseId)
+      .eq('release_id', releaseId),
+    supabase
+      .from('customer_deployments')
+      .select('*, customer:customers(id,name,account_type,status,health_score), release:releases(id,version,title)')
+      .or(`deployed_release_id.eq.${releaseId},deployed_version.eq.${release.data.version},git_tag.eq.${release.data.version}`)
+      .order('updated_at', { ascending: false })
   ])
 
-  if (release.error) {
-    throw createError({ statusCode: 404, statusMessage: release.error.message })
-  }
-
-  const firstError = [customers, existingRollouts].find(result => result.error)?.error
+  const firstError = [customers, existingRollouts, deployments].find(result => result.error)?.error
   if (firstError) {
     throw createError({ statusCode: 500, statusMessage: firstError.message })
   }
@@ -95,6 +102,7 @@ export default eventHandler(async (event) => {
 
   return {
     release: release.data,
-    rollouts: rollouts.data ?? []
+    rollouts: rollouts.data ?? [],
+    deployments: deployments.data ?? []
   }
 })

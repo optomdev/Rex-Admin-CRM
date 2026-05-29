@@ -17,7 +17,7 @@ export default eventHandler(async () => {
     timeline
   ] = await Promise.all([
     supabase.from('customers').select('*').order('updated_at', { ascending: false }).limit(6),
-    supabase.from('tickets').select('*, customer:customers(id,name,status,health_score)').order('updated_at', { ascending: false }).limit(8),
+    supabase.from('tickets').select('*, customer:customers(id,name,account_type,status,health_score)').order('updated_at', { ascending: false }).limit(8),
     supabase.from('onboarding_projects').select('*, customer:customers(id,name)').order('updated_at', { ascending: false }).limit(6),
     supabase.from('charges').select('*, customer:customers(id,name)').order('charge_date', { ascending: false }).limit(8),
     supabase.from('releases').select('*').order('published_at', { ascending: false, nullsFirst: false }).limit(5),

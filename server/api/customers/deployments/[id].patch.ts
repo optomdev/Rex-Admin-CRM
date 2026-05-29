@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { isSupabaseConfigured, serverSupabase } from '../../../utils/supabase'
 
+const optionalTimestamp = z.string().trim().optional().nullable()
+
 const deploymentSchema = z.object({
   name: z.string().trim().min(2),
   environment: z.enum(['demo', 'staging', 'production', 'training']),
@@ -13,10 +15,43 @@ const deploymentSchema = z.object({
   region: z.string().trim().optional().nullable(),
   deployed_release_id: z.string().uuid().optional().or(z.literal('')).nullable(),
   deployed_version: z.string().trim().optional().nullable(),
-  last_seen_at: z.string().datetime().optional().or(z.literal('')).nullable(),
+  app_provider: z.string().trim().optional().nullable(),
+  app_provider_project: z.string().trim().optional().nullable(),
+  git_repo: z.string().trim().optional().nullable(),
+  git_branch: z.string().trim().optional().nullable(),
+  git_tag: z.string().trim().optional().nullable(),
+  git_commit: z.string().trim().optional().nullable(),
+  latest_migration_version: z.string().trim().optional().nullable(),
+  latest_migration_name: z.string().trim().optional().nullable(),
+  edge_functions_commit: z.string().trim().optional().nullable(),
+  deploy_status: z.enum(['unknown', 'building', 'deployed', 'failed', 'rolled_back']),
+  last_deployed_at: optionalTimestamp,
+  last_smoke_tested_at: optionalTimestamp,
+  last_seen_at: optionalTimestamp,
   is_primary: z.boolean(),
   notes: z.string().trim().optional().nullable()
 })
+
+function normalizeTimestamp(value: string | null | undefined, field: string) {
+  if (!value) return null
+
+  const candidate = value
+    .trim()
+    .replace(' ', 'T')
+    .replace(/([+-]\d{2})$/, '$1:00')
+    .replace(/([+-]\d{2})(\d{2})$/, '$1:$2')
+
+  const date = new Date(candidate)
+
+  if (Number.isNaN(date.getTime())) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `${field} must be a valid date/time.`
+    })
+  }
+
+  return date.toISOString()
+}
 
 export default eventHandler(async (event) => {
   const deploymentId = getRouterParam(event, 'id')
@@ -38,7 +73,19 @@ export default eventHandler(async (event) => {
     region: body.region || null,
     deployed_release_id: body.deployed_release_id || null,
     deployed_version: body.deployed_version || null,
-    last_seen_at: body.last_seen_at || null,
+    app_provider: body.app_provider || null,
+    app_provider_project: body.app_provider_project || null,
+    git_repo: body.git_repo || null,
+    git_branch: body.git_branch || null,
+    git_tag: body.git_tag || null,
+    git_commit: body.git_commit || null,
+    latest_migration_version: body.latest_migration_version || null,
+    latest_migration_name: body.latest_migration_name || null,
+    edge_functions_commit: body.edge_functions_commit || null,
+    deploy_status: body.deploy_status,
+    last_deployed_at: normalizeTimestamp(body.last_deployed_at, 'Last deployed at'),
+    last_smoke_tested_at: normalizeTimestamp(body.last_smoke_tested_at, 'Smoke tested at'),
+    last_seen_at: normalizeTimestamp(body.last_seen_at, 'Last seen at'),
     is_primary: body.is_primary,
     notes: body.notes || null
   }
@@ -104,6 +151,11 @@ export default eventHandler(async (event) => {
       status: data.status,
       health_status: data.health_status,
       rex_project_ref: data.rex_project_ref,
+      app_provider: data.app_provider,
+      git_branch: data.git_branch,
+      git_tag: data.git_tag,
+      git_commit: data.git_commit,
+      latest_migration_version: data.latest_migration_version,
       was_primary: existing.data.is_primary,
       is_primary: data.is_primary
     }

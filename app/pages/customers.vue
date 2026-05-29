@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
-import type { CustomerBranch, CustomerContact, CustomerDeployment, CustomerDetail, CrmCustomer, Release } from '~/types'
+import type { CustomerAccountType, CustomerBranch, CustomerContact, CustomerDeployment, CustomerDetail, CrmCustomer, Release } from '~/types'
 
 const search = ref('')
 const statusFilter = ref('All')
+const accountTypeFilter = ref('all')
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const editContactOpen = ref(false)
@@ -32,14 +33,24 @@ const { data: customers, status, refresh } = await useAsyncData<CrmCustomer[]>('
 const { data: releases } = await useAsyncData<Release[]>('customer-release-options', () => $fetch('/api/releases'))
 
 const customerStatuses = ['prospect', 'onboarding', 'active', 'at_risk', 'paused', 'churned'] as const
+const customerAccountTypes = ['internal', 'prospect', 'customer', 'partner', 'franchise'] as const
 const customerStatusItems = [...customerStatuses]
 const statusItems = ['All', ...customerStatuses]
+const accountTypeItems = [
+  { label: 'All accounts', value: 'all' },
+  { label: 'Internal', value: 'internal' },
+  { label: 'Prospects', value: 'prospect' },
+  { label: 'Customers', value: 'customer' },
+  { label: 'Partners / franchises', value: 'partners_franchises' }
+]
 const deploymentEnvironments = ['demo', 'staging', 'production', 'training'] as const
 const deploymentStatuses = ['provisioning', 'active', 'maintenance', 'paused', 'retired', 'error'] as const
 const deploymentHealthStatuses = ['unknown', 'healthy', 'degraded', 'down'] as const
+const deploymentDeployStatuses = ['unknown', 'building', 'deployed', 'failed', 'rolled_back'] as const
 
 const createSchema = z.object({
   name: z.string().min(2, 'Enter the practice name'),
+  account_type: z.enum(customerAccountTypes),
   status: z.enum(customerStatuses),
   primary_domain: z.string().optional(),
   customer_identifier: z.string().optional(),
@@ -53,6 +64,7 @@ const createSchema = z.object({
 
 const editSchema = z.object({
   name: z.string().min(2, 'Enter the practice name'),
+  account_type: z.enum(customerAccountTypes),
   status: z.enum(customerStatuses),
   health_score: z.coerce.number().int().min(0).max(100),
   primary_domain: z.string().optional(),
@@ -93,6 +105,18 @@ const deploymentSchema = z.object({
   region: z.string().optional(),
   deployed_release_id: z.string().optional(),
   deployed_version: z.string().optional(),
+  app_provider: z.string().optional(),
+  app_provider_project: z.string().optional(),
+  git_repo: z.string().optional(),
+  git_branch: z.string().optional(),
+  git_tag: z.string().optional(),
+  git_commit: z.string().optional(),
+  latest_migration_version: z.string().optional(),
+  latest_migration_name: z.string().optional(),
+  edge_functions_commit: z.string().optional(),
+  deploy_status: z.enum(deploymentDeployStatuses),
+  last_deployed_at: z.string().optional(),
+  last_smoke_tested_at: z.string().optional(),
   is_primary: z.boolean(),
   notes: z.string().optional()
 })
@@ -106,6 +130,7 @@ type UiColor = 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'error
 
 const createState = reactive<CreateSchema>({
   name: '',
+  account_type: 'prospect',
   status: 'prospect',
   primary_domain: '',
   customer_identifier: '',
@@ -119,6 +144,7 @@ const createState = reactive<CreateSchema>({
 
 const editState = reactive<EditSchema>({
   name: '',
+  account_type: 'prospect',
   status: 'prospect',
   health_score: 75,
   primary_domain: '',
@@ -175,6 +201,18 @@ const deploymentState = reactive<DeploymentSchema>({
   region: 'eu-west-2',
   deployed_release_id: '',
   deployed_version: '',
+  app_provider: '',
+  app_provider_project: '',
+  git_repo: '',
+  git_branch: '',
+  git_tag: '',
+  git_commit: '',
+  latest_migration_version: '',
+  latest_migration_name: '',
+  edge_functions_commit: '',
+  deploy_status: 'unknown',
+  last_deployed_at: '',
+  last_smoke_tested_at: '',
   is_primary: false,
   notes: ''
 })
@@ -191,6 +229,18 @@ const deploymentEditState = reactive<DeploymentSchema>({
   region: 'eu-west-2',
   deployed_release_id: '',
   deployed_version: '',
+  app_provider: '',
+  app_provider_project: '',
+  git_repo: '',
+  git_branch: '',
+  git_tag: '',
+  git_commit: '',
+  latest_migration_version: '',
+  latest_migration_name: '',
+  edge_functions_commit: '',
+  deploy_status: 'unknown',
+  last_deployed_at: '',
+  last_smoke_tested_at: '',
   is_primary: false,
   notes: ''
 })
@@ -222,15 +272,27 @@ const releaseItems = computed(() => [
 const filteredCustomers = computed(() => {
   const rows = customers.value ?? []
   return rows.filter((customer) => {
-    const matchesSearch = !search.value || customer.name.toLowerCase().includes(search.value.toLowerCase())
+    const haystack = [
+      customer.name,
+      customer.primary_domain,
+      customer.customer_identifier,
+      customer.account_type,
+      ...customer.tags
+    ].filter(Boolean).join(' ').toLowerCase()
+    const matchesSearch = !search.value || haystack.includes(search.value.toLowerCase())
     const matchesStatus = statusFilter.value === 'All' || customer.status === statusFilter.value
-    return matchesSearch && matchesStatus
+    const matchesAccountType = accountTypeFilter.value === 'all'
+      || customer.account_type === accountTypeFilter.value
+      || (accountTypeFilter.value === 'partners_franchises' && ['partner', 'franchise'].includes(customer.account_type))
+    return matchesSearch && matchesStatus && matchesAccountType
   })
 })
 
 const customerStats = computed(() => {
   const rows = customers.value ?? []
-  const monthly = rows.reduce((sum, customer) => sum + Number(customer.recurring_monthly_amount), 0)
+  const commercialRows = rows.filter(customer => customer.account_type !== 'internal')
+  const monthly = commercialRows.reduce((sum, customer) => sum + Number(customer.recurring_monthly_amount), 0)
+  const internal = rows.filter(customer => customer.account_type === 'internal').length
   const onboarding = rows.filter(customer => customer.status === 'onboarding').length
   const atRisk = rows.filter(customer => customer.status === 'at_risk').length
   const averageHealth = rows.length
@@ -240,13 +302,13 @@ const customerStats = computed(() => {
   return [{
     label: 'Customers',
     value: rows.length.toString(),
-    detail: `${filteredCustomers.value.length} in view`,
+    detail: internal ? `${filteredCustomers.value.length} in view, ${internal} internal` : `${filteredCustomers.value.length} in view`,
     icon: 'i-lucide-building-2',
     color: 'primary' as const
   }, {
     label: 'Monthly ledger',
     value: `GBP ${monthly.toLocaleString('en-GB')}`,
-    detail: 'Recurring value tracked',
+    detail: 'Commercial accounts only',
     icon: 'i-lucide-banknote',
     color: 'success' as const
   }, {
@@ -270,6 +332,18 @@ function statusColor(customerStatus: CrmCustomer['status']): UiColor {
   if (customerStatus === 'at_risk') return 'warning'
   if (customerStatus === 'churned') return 'error'
   return 'neutral'
+}
+
+function accountTypeColor(accountType: CustomerAccountType): UiColor {
+  if (accountType === 'internal') return 'info'
+  if (accountType === 'customer') return 'success'
+  if (accountType === 'partner') return 'secondary'
+  if (accountType === 'franchise') return 'warning'
+  return 'neutral'
+}
+
+function accountTypeLabel(accountType: CustomerAccountType) {
+  return accountType.replaceAll('_', ' ')
 }
 
 function healthColor(score: number): UiColor {
@@ -299,6 +373,13 @@ function deploymentHealthColor(status: CustomerDeployment['health_status']): UiC
   return 'neutral'
 }
 
+function deploymentDeployStatusColor(status: CustomerDeployment['deploy_status']): UiColor {
+  if (status === 'deployed') return 'success'
+  if (status === 'building') return 'warning'
+  if (status === 'failed' || status === 'rolled_back') return 'error'
+  return 'neutral'
+}
+
 const operationCards = computed<Array<{
   label: string
   value: string
@@ -313,10 +394,12 @@ const operationCards = computed<Array<{
   color: primaryDeployment.value ? deploymentHealthColor(primaryDeployment.value.health_status) : 'warning'
 }, {
   label: 'Deployed version',
-  value: primaryDeployment.value?.release?.version ?? primaryDeployment.value?.deployed_version ?? 'unknown',
-  detail: primaryDeployment.value?.release?.title ?? primaryDeployment.value?.notes ?? 'Link a release or commit',
+  value: primaryDeployment.value?.git_tag ?? primaryDeployment.value?.release?.version ?? primaryDeployment.value?.deployed_version ?? 'unknown',
+  detail: primaryDeployment.value?.git_branch
+    ? `${primaryDeployment.value.git_branch} @ ${primaryDeployment.value.git_commit ?? 'commit unknown'}`
+    : primaryDeployment.value?.release?.title ?? primaryDeployment.value?.notes ?? 'Link a release or commit',
   icon: 'i-lucide-git-branch',
-  color: primaryDeployment.value?.deployed_release_id || primaryDeployment.value?.deployed_version ? 'success' : 'neutral'
+  color: primaryDeployment.value?.git_tag || primaryDeployment.value?.git_commit || primaryDeployment.value?.deployed_release_id || primaryDeployment.value?.deployed_version ? 'success' : 'neutral'
 }, {
   label: 'Active tickets',
   value: activeTicketCount.value.toString(),
@@ -387,6 +470,15 @@ const attentionItems = computed(() => {
         color: 'warning'
       })
     }
+
+    if (!primaryDeployment.value.git_branch || !primaryDeployment.value.git_commit) {
+      items.push({
+        title: 'DevOps baseline incomplete',
+        detail: 'Track the provider, branch, commit, and migration for this environment.',
+        icon: 'i-lucide-git-pull-request',
+        color: 'warning'
+      })
+    }
   }
 
   if (urgentTicketCount.value) {
@@ -431,6 +523,18 @@ function resetDeploymentForm() {
   deploymentState.region = 'eu-west-2'
   deploymentState.deployed_release_id = ''
   deploymentState.deployed_version = ''
+  deploymentState.app_provider = ''
+  deploymentState.app_provider_project = ''
+  deploymentState.git_repo = ''
+  deploymentState.git_branch = ''
+  deploymentState.git_tag = ''
+  deploymentState.git_commit = ''
+  deploymentState.latest_migration_version = ''
+  deploymentState.latest_migration_name = ''
+  deploymentState.edge_functions_commit = ''
+  deploymentState.deploy_status = 'unknown'
+  deploymentState.last_deployed_at = ''
+  deploymentState.last_smoke_tested_at = ''
   deploymentState.is_primary = currentDeployments.value.length === 0
   deploymentState.notes = ''
 }
@@ -448,6 +552,18 @@ function resetDeploymentEditForm() {
   deploymentEditState.region = 'eu-west-2'
   deploymentEditState.deployed_release_id = ''
   deploymentEditState.deployed_version = ''
+  deploymentEditState.app_provider = ''
+  deploymentEditState.app_provider_project = ''
+  deploymentEditState.git_repo = ''
+  deploymentEditState.git_branch = ''
+  deploymentEditState.git_tag = ''
+  deploymentEditState.git_commit = ''
+  deploymentEditState.latest_migration_version = ''
+  deploymentEditState.latest_migration_name = ''
+  deploymentEditState.edge_functions_commit = ''
+  deploymentEditState.deploy_status = 'unknown'
+  deploymentEditState.last_deployed_at = ''
+  deploymentEditState.last_smoke_tested_at = ''
   deploymentEditState.is_primary = false
   deploymentEditState.notes = ''
 }
@@ -470,6 +586,18 @@ function openEditDeployment(deployment: CustomerDeployment) {
   deploymentEditState.region = deployment.region || ''
   deploymentEditState.deployed_release_id = deployment.deployed_release_id || ''
   deploymentEditState.deployed_version = deployment.deployed_version || ''
+  deploymentEditState.app_provider = deployment.app_provider || ''
+  deploymentEditState.app_provider_project = deployment.app_provider_project || ''
+  deploymentEditState.git_repo = deployment.git_repo || ''
+  deploymentEditState.git_branch = deployment.git_branch || ''
+  deploymentEditState.git_tag = deployment.git_tag || ''
+  deploymentEditState.git_commit = deployment.git_commit || ''
+  deploymentEditState.latest_migration_version = deployment.latest_migration_version || ''
+  deploymentEditState.latest_migration_name = deployment.latest_migration_name || ''
+  deploymentEditState.edge_functions_commit = deployment.edge_functions_commit || ''
+  deploymentEditState.deploy_status = deployment.deploy_status || 'unknown'
+  deploymentEditState.last_deployed_at = deployment.last_deployed_at || ''
+  deploymentEditState.last_smoke_tested_at = deployment.last_smoke_tested_at || ''
   deploymentEditState.is_primary = deployment.is_primary
   deploymentEditState.notes = deployment.notes || ''
   editDeploymentOpen.value = true
@@ -477,6 +605,7 @@ function openEditDeployment(deployment: CustomerDeployment) {
 
 function resetCreateForm() {
   createState.name = ''
+  createState.account_type = 'prospect'
   createState.status = 'prospect'
   createState.primary_domain = ''
   createState.customer_identifier = ''
@@ -544,6 +673,7 @@ function openEditBranch(branch: CustomerBranch) {
 
 function hydrateEditState(customer: CrmCustomer) {
   editState.name = customer.name
+  editState.account_type = customer.account_type
   editState.status = customer.status
   editState.health_score = customer.health_score
   editState.primary_domain = customer.primary_domain || ''
@@ -763,6 +893,18 @@ async function createDeployment(event: FormSubmitEvent<DeploymentSchema>) {
         region: event.data.region || null,
         deployed_release_id: event.data.deployed_release_id || null,
         deployed_version: event.data.deployed_version || null,
+        app_provider: event.data.app_provider || null,
+        app_provider_project: event.data.app_provider_project || null,
+        git_repo: event.data.git_repo || null,
+        git_branch: event.data.git_branch || null,
+        git_tag: event.data.git_tag || null,
+        git_commit: event.data.git_commit || null,
+        latest_migration_version: event.data.latest_migration_version || null,
+        latest_migration_name: event.data.latest_migration_name || null,
+        edge_functions_commit: event.data.edge_functions_commit || null,
+        deploy_status: event.data.deploy_status,
+        last_deployed_at: event.data.last_deployed_at || null,
+        last_smoke_tested_at: event.data.last_smoke_tested_at || null,
         notes: event.data.notes || null
       }
     })
@@ -843,6 +985,18 @@ async function updateDeployment(event: FormSubmitEvent<DeploymentSchema>) {
         region: event.data.region || null,
         deployed_release_id: event.data.deployed_release_id || null,
         deployed_version: event.data.deployed_version || null,
+        app_provider: event.data.app_provider || null,
+        app_provider_project: event.data.app_provider_project || null,
+        git_repo: event.data.git_repo || null,
+        git_branch: event.data.git_branch || null,
+        git_tag: event.data.git_tag || null,
+        git_commit: event.data.git_commit || null,
+        latest_migration_version: event.data.latest_migration_version || null,
+        latest_migration_name: event.data.latest_migration_name || null,
+        edge_functions_commit: event.data.edge_functions_commit || null,
+        deploy_status: event.data.deploy_status,
+        last_deployed_at: event.data.last_deployed_at || null,
+        last_smoke_tested_at: event.data.last_smoke_tested_at || null,
         notes: event.data.notes || null
       }
     })
@@ -1025,6 +1179,7 @@ async function deleteBranch() {
             placeholder="Search customers..."
             class="w-64"
           />
+          <USelect v-model="accountTypeFilter" :items="accountTypeItems" class="w-52" />
           <USelect v-model="statusFilter" :items="statusItems" class="w-44" />
         </template>
         <template #right>
@@ -1083,7 +1238,10 @@ async function deleteBranch() {
                 {{ customer.customer_identifier }}
               </p>
             </div>
-            <UBadge :label="customer.status.replaceAll('_', ' ')" :color="statusColor(customer.status)" variant="subtle" />
+            <div class="flex shrink-0 flex-wrap justify-end gap-2">
+              <UBadge :label="accountTypeLabel(customer.account_type)" :color="accountTypeColor(customer.account_type)" variant="subtle" />
+              <UBadge :label="customer.status.replaceAll('_', ' ')" :color="statusColor(customer.status)" variant="subtle" />
+            </div>
           </div>
 
           <div class="mt-5 grid grid-cols-2 gap-3 text-sm">
@@ -1167,7 +1325,15 @@ async function deleteBranch() {
               />
             </UFormField>
 
-            <div class="grid gap-4 sm:grid-cols-2">
+            <div class="grid gap-4 sm:grid-cols-3">
+              <UFormField label="Account type" name="account_type">
+                <USelect
+                  v-model="createState.account_type"
+                  :items="[...customerAccountTypes]"
+                  class="w-full"
+                />
+              </UFormField>
+
               <UFormField label="Status" name="status">
                 <USelect
                   v-model="createState.status"
@@ -1324,6 +1490,54 @@ async function deleteBranch() {
               <UInput v-model="deploymentState.deployed_version" placeholder="commit-87a328e" class="w-full" />
             </UFormField>
 
+            <div class="grid gap-4 sm:grid-cols-3">
+              <UFormField label="App provider" name="app_provider">
+                <UInput v-model="deploymentState.app_provider" placeholder="AWS Amplify" class="w-full" />
+              </UFormField>
+              <UFormField label="Provider project" name="app_provider_project">
+                <UInput v-model="deploymentState.app_provider_project" placeholder="Amplify app/environment" class="w-full" />
+              </UFormField>
+              <UFormField label="Deploy status" name="deploy_status">
+                <USelect v-model="deploymentState.deploy_status" :items="[...deploymentDeployStatuses]" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-4">
+              <UFormField label="Git repo" name="git_repo">
+                <UInput v-model="deploymentState.git_repo" placeholder="optomdev/Rex" class="w-full" />
+              </UFormField>
+              <UFormField label="Git branch" name="git_branch">
+                <UInput v-model="deploymentState.git_branch" placeholder="staging" class="w-full" />
+              </UFormField>
+              <UFormField label="Git tag" name="git_tag">
+                <UInput v-model="deploymentState.git_tag" placeholder="v1.0.0-staging.1" class="w-full" />
+              </UFormField>
+              <UFormField label="Git commit" name="git_commit">
+                <UInput v-model="deploymentState.git_commit" placeholder="8e929be" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UFormField label="Latest migration" name="latest_migration_version">
+                <UInput v-model="deploymentState.latest_migration_version" placeholder="20260529101702" class="w-full" />
+              </UFormField>
+              <UFormField label="Migration name" name="latest_migration_name">
+                <UInput v-model="deploymentState.latest_migration_name" placeholder="harden_recurring_exception_rpc_permission" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-3">
+              <UFormField label="Edge Functions commit" name="edge_functions_commit">
+                <UInput v-model="deploymentState.edge_functions_commit" placeholder="8e929be" class="w-full" />
+              </UFormField>
+              <UFormField label="Last deployed at" name="last_deployed_at">
+                <UInput v-model="deploymentState.last_deployed_at" placeholder="2026-05-29T10:30:00.000Z" class="w-full" />
+              </UFormField>
+              <UFormField label="Smoke tested at" name="last_smoke_tested_at">
+                <UInput v-model="deploymentState.last_smoke_tested_at" placeholder="2026-05-29T10:45:00.000Z" class="w-full" />
+              </UFormField>
+            </div>
+
             <UFormField label="Notes" name="notes">
               <UTextarea
                 v-model="deploymentState.notes"
@@ -1414,6 +1628,54 @@ async function deleteBranch() {
               <UInput v-model="deploymentEditState.deployed_version" class="w-full" />
             </UFormField>
 
+            <div class="grid gap-4 sm:grid-cols-3">
+              <UFormField label="App provider" name="app_provider">
+                <UInput v-model="deploymentEditState.app_provider" class="w-full" />
+              </UFormField>
+              <UFormField label="Provider project" name="app_provider_project">
+                <UInput v-model="deploymentEditState.app_provider_project" class="w-full" />
+              </UFormField>
+              <UFormField label="Deploy status" name="deploy_status">
+                <USelect v-model="deploymentEditState.deploy_status" :items="[...deploymentDeployStatuses]" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-4">
+              <UFormField label="Git repo" name="git_repo">
+                <UInput v-model="deploymentEditState.git_repo" class="w-full" />
+              </UFormField>
+              <UFormField label="Git branch" name="git_branch">
+                <UInput v-model="deploymentEditState.git_branch" class="w-full" />
+              </UFormField>
+              <UFormField label="Git tag" name="git_tag">
+                <UInput v-model="deploymentEditState.git_tag" class="w-full" />
+              </UFormField>
+              <UFormField label="Git commit" name="git_commit">
+                <UInput v-model="deploymentEditState.git_commit" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UFormField label="Latest migration" name="latest_migration_version">
+                <UInput v-model="deploymentEditState.latest_migration_version" class="w-full" />
+              </UFormField>
+              <UFormField label="Migration name" name="latest_migration_name">
+                <UInput v-model="deploymentEditState.latest_migration_name" class="w-full" />
+              </UFormField>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-3">
+              <UFormField label="Edge Functions commit" name="edge_functions_commit">
+                <UInput v-model="deploymentEditState.edge_functions_commit" class="w-full" />
+              </UFormField>
+              <UFormField label="Last deployed at" name="last_deployed_at">
+                <UInput v-model="deploymentEditState.last_deployed_at" placeholder="2026-05-29T10:30:00.000Z" class="w-full" />
+              </UFormField>
+              <UFormField label="Smoke tested at" name="last_smoke_tested_at">
+                <UInput v-model="deploymentEditState.last_smoke_tested_at" placeholder="2026-05-29T10:45:00.000Z" class="w-full" />
+              </UFormField>
+            </div>
+
             <UFormField label="Notes" name="notes">
               <UTextarea
                 v-model="deploymentEditState.notes"
@@ -1466,6 +1728,11 @@ async function deleteBranch() {
                     <h3 class="text-base font-semibold text-highlighted">
                       Operations
                     </h3>
+                    <UBadge
+                      :label="accountTypeLabel(currentCustomer.account_type)"
+                      :color="accountTypeColor(currentCustomer.account_type)"
+                      variant="subtle"
+                    />
                     <UBadge
                       :label="currentCustomer.status.replaceAll('_', ' ')"
                       :color="statusColor(currentCustomer.status)"
@@ -1622,9 +1889,13 @@ async function deleteBranch() {
                 />
               </div>
 
-              <div class="grid gap-4 sm:grid-cols-2">
+              <div class="grid gap-4 sm:grid-cols-3">
                 <UFormField label="Practice name" name="name">
                   <UInput v-model="editState.name" class="w-full" />
+                </UFormField>
+
+                <UFormField label="Account type" name="account_type">
+                  <USelect v-model="editState.account_type" :items="[...customerAccountTypes]" class="w-full" />
                 </UFormField>
 
                 <UFormField label="Status" name="status">
@@ -1738,9 +2009,10 @@ async function deleteBranch() {
                     <UBadge :label="deployment.environment" color="neutral" variant="outline" />
                     <UBadge :label="deployment.status" :color="deploymentStatusColor(deployment.status)" variant="subtle" />
                     <UBadge :label="deployment.health_status" :color="deploymentHealthColor(deployment.health_status)" variant="subtle" />
+                    <UBadge :label="deployment.deploy_status.replaceAll('_', ' ')" :color="deploymentDeployStatusColor(deployment.deploy_status)" variant="subtle" />
                   </div>
 
-                  <dl class="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                  <dl class="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-3">
                     <div>
                       <dt class="text-muted">
                         Project ref
@@ -1755,6 +2027,46 @@ async function deleteBranch() {
                       </dt>
                       <dd class="truncate font-medium text-highlighted">
                         {{ deployment.release?.version || deployment.deployed_version || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Provider
+                      </dt>
+                      <dd class="truncate font-medium text-highlighted">
+                        {{ deployment.app_provider || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Branch
+                      </dt>
+                      <dd class="truncate font-medium text-highlighted">
+                        {{ deployment.git_branch || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Tag / commit
+                      </dt>
+                      <dd class="truncate font-medium text-highlighted">
+                        {{ deployment.git_tag || deployment.git_commit || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Latest migration
+                      </dt>
+                      <dd class="truncate font-medium text-highlighted">
+                        {{ deployment.latest_migration_version || 'Not set' }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">
+                        Edge Functions
+                      </dt>
+                      <dd class="truncate font-medium text-highlighted">
+                        {{ deployment.edge_functions_commit || 'Not set' }}
                       </dd>
                     </div>
                     <div>

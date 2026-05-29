@@ -74,7 +74,7 @@ export default eventHandler(async (event) => {
     .from('tickets')
     .update(normalizedBody)
     .eq('id', ticketId)
-    .select('*, customer:customers(id,name,status,health_score)')
+    .select('*, customer:customers(id,name,account_type,status,health_score)')
     .single()
 
   if (ticket.error) {
