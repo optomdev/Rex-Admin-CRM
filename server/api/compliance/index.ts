@@ -1,5 +1,5 @@
-import { internalComplianceDocuments } from '../utils/complianceTracker'
-import { isSupabaseConfigured, serverSupabase } from '../utils/supabase'
+import { internalComplianceDocuments } from '../../utils/complianceTracker'
+import { isSupabaseConfigured, serverSupabase } from '../../utils/supabase'
 
 function seedRows() {
   return internalComplianceDocuments.map(document => ({

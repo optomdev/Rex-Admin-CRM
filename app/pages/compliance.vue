@@ -1,12 +1,25 @@
 <script setup lang="ts">
 import type { ComplianceDocument, ComplianceDocumentStatus, ComplianceEvidenceFile, ComplianceEvidenceType } from '~/types'
 
+type EvidencePreview = {
+  kind: 'text' | 'image' | 'download'
+  filename: string
+  content_type?: string | null
+  signed_url?: string | null
+  content?: string
+  simulated?: boolean
+}
+
 const toast = useToast()
 const detailOpen = ref(false)
 const saving = ref(false)
 const importing = ref(false)
+const reimporting = ref(false)
+const previewLoading = ref(false)
 const uploadingDocumentId = ref<string | null>(null)
 const selectedDocument = ref<ComplianceDocument | null>(null)
+const selectedPreviewFile = ref<ComplianceEvidenceFile | null>(null)
+const preview = ref<EvidencePreview | null>(null)
 
 const { data: documents, status, refresh } = await useAsyncData<ComplianceDocument[]>('internal-compliance', () => $fetch('/api/compliance'))
 
@@ -87,6 +100,40 @@ function formatBytes(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`
 }
 
+function sortedFiles(documentRecord: ComplianceDocument) {
+  return [...(documentRecord.files ?? [])].sort((a, b) => {
+    if (a.evidence_type === b.evidence_type) {
+      return new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
+    }
+
+    return a.evidence_type === 'source_document' ? -1 : 1
+  })
+}
+
+function sourceFiles(documentRecord: ComplianceDocument) {
+  return sortedFiles(documentRecord).filter(file => file.evidence_type === 'source_document')
+}
+
+function supportingFiles(documentRecord: ComplianceDocument) {
+  return sortedFiles(documentRecord).filter(file => file.evidence_type !== 'source_document')
+}
+
+function fileIcon(file: ComplianceEvidenceFile) {
+  if (file.content_type?.startsWith('image/')) return 'i-lucide-image'
+  if (file.original_filename.endsWith('.md')) return 'i-lucide-file-text'
+  if (file.original_filename.endsWith('.docx')) return 'i-lucide-file-type'
+  return 'i-lucide-file'
+}
+
+function isMarkdownFile(file: ComplianceEvidenceFile) {
+  return file.content_type?.startsWith('text/') || file.original_filename.toLowerCase().endsWith('.md')
+}
+
+function isImageFile(file: ComplianceEvidenceFile) {
+  const filename = file.original_filename.toLowerCase()
+  return file.content_type?.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg)$/.test(filename)
+}
+
 function uploadForm(documentId: string) {
   if (!uploadState[documentId]) {
     uploadState[documentId] = {
@@ -106,7 +153,7 @@ function pickFile(documentId: string) {
   document.getElementById(fileInputId(documentId))?.click()
 }
 
-function openDetail(documentRecord: ComplianceDocument) {
+function openDetail(documentRecord: ComplianceDocument, autoPreview = true) {
   selectedDocument.value = documentRecord
   editState.document_status = documentRecord.document_status
   editState.owner = documentRecord.owner
@@ -116,6 +163,34 @@ function openDetail(documentRecord: ComplianceDocument) {
   editState.go_live_blocker = documentRecord.go_live_blocker
   editState.notes = documentRecord.notes || ''
   detailOpen.value = true
+
+  if (autoPreview) {
+    void selectDefaultPreview(documentRecord)
+  }
+}
+
+function openDocs(documentRecord: ComplianceDocument) {
+  openDetail(documentRecord)
+}
+
+function openDocsAtFile(documentRecord: ComplianceDocument, file: ComplianceEvidenceFile) {
+  openDetail(documentRecord, false)
+  void previewEvidenceFile(file)
+}
+
+function preferredPreviewFile(documentRecord: ComplianceDocument) {
+  const sources = sourceFiles(documentRecord)
+  return sources.find(isMarkdownFile) ?? sources.find(isImageFile) ?? sources[0] ?? supportingFiles(documentRecord)[0] ?? null
+}
+
+async function selectDefaultPreview(documentRecord: ComplianceDocument) {
+  const file = preferredPreviewFile(documentRecord)
+  preview.value = null
+  selectedPreviewFile.value = null
+
+  if (file) {
+    await previewEvidenceFile(file)
+  }
 }
 
 async function saveDocument() {
@@ -227,6 +302,37 @@ async function importDesktopPack() {
   }
 }
 
+async function reimportDesktopPack() {
+  reimporting.value = true
+
+  try {
+    const cleaned = await $fetch<{ deleted: number, simulated?: boolean }>('/api/compliance/reimport-desktop', {
+      method: 'POST'
+    })
+    const imported = await $fetch<{ imported: number, simulated?: boolean }>('/api/compliance/import-desktop', {
+      method: 'POST'
+    })
+
+    await refresh()
+
+    toast.add({
+      title: cleaned.simulated || imported.simulated ? 'Desktop pack checked' : 'Desktop pack re-imported',
+      description: `${cleaned.deleted} old source files removed, ${imported.imported} current files mapped.`,
+      color: cleaned.simulated || imported.simulated ? 'warning' : 'success',
+      icon: 'i-lucide-refresh-cw'
+    })
+  } catch (error) {
+    toast.add({
+      title: 'Re-import failed',
+      description: error instanceof Error ? error.message : 'The Desktop compliance folder was not refreshed.',
+      color: 'error',
+      icon: 'i-lucide-alert-circle'
+    })
+  } finally {
+    reimporting.value = false
+  }
+}
+
 async function openEvidenceFile(file: ComplianceEvidenceFile) {
   try {
     const result = await $fetch<{ signed_url: string | null }>(`/api/compliance/files/${file.id}/signed-url`)
@@ -241,6 +347,31 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
       color: 'error',
       icon: 'i-lucide-alert-circle'
     })
+  }
+}
+
+function openSelectedPreviewFile() {
+  if (selectedPreviewFile.value) {
+    void openEvidenceFile(selectedPreviewFile.value)
+  }
+}
+
+async function previewEvidenceFile(file: ComplianceEvidenceFile) {
+  selectedPreviewFile.value = file
+  previewLoading.value = true
+
+  try {
+    preview.value = await $fetch<EvidencePreview>(`/api/compliance/files/${file.id}/preview`)
+  } catch (error) {
+    preview.value = null
+    toast.add({
+      title: 'Could not preview evidence',
+      description: error instanceof Error ? error.message : 'The private evidence file could not be previewed.',
+      color: 'error',
+      icon: 'i-lucide-alert-circle'
+    })
+  } finally {
+    previewLoading.value = false
   }
 }
 </script>
@@ -260,6 +391,14 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
             variant="outline"
             :loading="importing"
             @click="importDesktopPack"
+          />
+          <UButton
+            icon="i-lucide-refresh-cw"
+            label="Re-import Sources"
+            color="neutral"
+            variant="outline"
+            :loading="reimporting"
+            @click="reimportDesktopPack"
           />
         </template>
       </UDashboardNavbar>
@@ -291,14 +430,21 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
         </div>
       </div>
 
-      <UAlert
-        class="mt-5"
-        icon="i-lucide-lock-keyhole"
-        color="primary"
-        variant="subtle"
-        title="Internal RexApp Compliance Tracker"
-        description="Tracks the Desktop evidence pack as internal operational records, with private Supabase Storage uploads and service-role-only database access."
-      />
+      <div class="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
+        <div class="flex items-start gap-3">
+          <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary">
+            <UIcon name="i-lucide-lock-keyhole" class="size-4" />
+          </div>
+          <div class="min-w-0">
+            <p class="font-medium text-highlighted">
+              Internal RexApp Compliance Tracker
+            </p>
+            <p class="mt-1 text-sm leading-6 text-muted">
+              Tracks the Desktop evidence pack as internal operational records, with private Supabase Storage uploads and service-role-only database access.
+            </p>
+          </div>
+        </div>
+      </div>
 
       <div class="mt-5 space-y-4">
         <UCard
@@ -371,7 +517,7 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
 
             <div class="space-y-3 rounded-lg border border-default p-3">
               <div class="flex items-center justify-between gap-3">
-                <span class="text-sm font-medium text-highlighted">Evidence</span>
+                <span class="text-sm font-medium text-highlighted">Docs</span>
                 <UBadge
                   :label="`${documentRecord.files?.length ?? 0} files`"
                   color="neutral"
@@ -397,6 +543,14 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
               >
               <div class="flex gap-2">
                 <UButton
+                  icon="i-lucide-folder-open"
+                  label="Docs"
+                  size="sm"
+                  color="neutral"
+                  variant="outline"
+                  @click="openDocs(documentRecord)"
+                />
+                <UButton
                   icon="i-lucide-upload"
                   label="Upload"
                   size="sm"
@@ -406,7 +560,7 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
                 />
                 <UButton
                   icon="i-lucide-pencil"
-                  label="Edit"
+                  aria-label="Edit record"
                   size="sm"
                   color="neutral"
                   variant="outline"
@@ -414,15 +568,18 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
                 />
               </div>
 
-              <div v-if="documentRecord.files?.length" class="space-y-2">
+              <div v-if="sourceFiles(documentRecord).length" class="space-y-2">
                 <button
-                  v-for="file in documentRecord.files.slice(0, 3)"
+                  v-for="file in sourceFiles(documentRecord).slice(0, 3)"
                   :key="file.id"
                   type="button"
                   class="flex w-full items-center justify-between gap-2 rounded-md border border-default px-2 py-2 text-left text-sm hover:bg-elevated"
-                  @click="openEvidenceFile(file)"
+                  @click="openDocsAtFile(documentRecord, file)"
                 >
-                  <span class="min-w-0 truncate text-highlighted">{{ file.original_filename }}</span>
+                  <span class="flex min-w-0 items-center gap-2">
+                    <UIcon :name="fileIcon(file)" class="size-4 shrink-0 text-muted" />
+                    <span class="truncate text-highlighted">{{ file.original_filename }}</span>
+                  </span>
                   <span class="shrink-0 text-xs text-muted">{{ formatBytes(file.size_bytes) }}</span>
                 </button>
               </div>
@@ -434,6 +591,7 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
           v-if="!rows.length && status !== 'pending'"
           icon="i-lucide-info"
           color="neutral"
+          variant="subtle"
           title="No compliance records yet"
           description="Run the Desktop pack import to seed internal evidence records."
         />
@@ -508,23 +666,126 @@ async function openEvidenceFile(file: ComplianceEvidenceFile) {
               </p>
             </div>
 
-            <div class="space-y-2">
-              <p class="text-sm font-medium text-highlighted">
-                Uploaded evidence
-              </p>
-              <button
-                v-for="file in selectedDocument.files"
-                :key="file.id"
-                type="button"
-                class="flex w-full items-center justify-between gap-3 rounded-md border border-default p-3 text-left hover:bg-elevated"
-                @click="openEvidenceFile(file)"
-              >
-                <span class="min-w-0">
-                  <span class="block truncate text-sm font-medium text-highlighted">{{ file.original_filename }}</span>
-                  <span class="block text-xs text-muted">{{ formatLabel(file.evidence_type) }} - {{ formatBytes(file.size_bytes) }}</span>
-                </span>
-                <UIcon name="i-lucide-external-link" class="size-4 shrink-0 text-muted" />
-              </button>
+            <div class="grid gap-4 lg:grid-cols-[17rem_1fr]">
+              <div class="space-y-4">
+                <div class="space-y-2">
+                  <p class="text-sm font-medium text-highlighted">
+                    Source documents
+                  </p>
+                  <button
+                    v-for="file in sourceFiles(selectedDocument)"
+                    :key="file.id"
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3 rounded-md border p-3 text-left transition"
+                    :class="selectedPreviewFile?.id === file.id ? 'border-primary/40 bg-primary/10' : 'border-default hover:bg-elevated'"
+                    @click="previewEvidenceFile(file)"
+                  >
+                    <span class="min-w-0">
+                      <span class="flex min-w-0 items-center gap-2">
+                        <UIcon :name="fileIcon(file)" class="size-4 shrink-0 text-muted" />
+                        <span class="block truncate text-sm font-medium text-highlighted">{{ file.original_filename }}</span>
+                      </span>
+                      <span class="block text-xs text-muted">{{ formatLabel(file.evidence_type) }} - {{ formatBytes(file.size_bytes) }}</span>
+                    </span>
+                    <UIcon name="i-lucide-eye" class="size-4 shrink-0 text-muted" />
+                  </button>
+                  <UAlert
+                    v-if="!sourceFiles(selectedDocument).length"
+                    icon="i-lucide-info"
+                    color="neutral"
+                    variant="subtle"
+                    title="No source documents uploaded"
+                    description="Use Import Desktop Pack to pull the local evidence folder into the private Supabase bucket."
+                  />
+                </div>
+
+                <div class="space-y-2">
+                  <p class="text-sm font-medium text-highlighted">
+                    Supporting evidence
+                  </p>
+                  <button
+                    v-for="file in supportingFiles(selectedDocument)"
+                    :key="file.id"
+                    type="button"
+                    class="flex w-full items-center justify-between gap-3 rounded-md border p-3 text-left transition"
+                    :class="selectedPreviewFile?.id === file.id ? 'border-primary/40 bg-primary/10' : 'border-default hover:bg-elevated'"
+                    @click="previewEvidenceFile(file)"
+                  >
+                    <span class="min-w-0">
+                      <span class="flex min-w-0 items-center gap-2">
+                        <UIcon :name="fileIcon(file)" class="size-4 shrink-0 text-muted" />
+                        <span class="block truncate text-sm font-medium text-highlighted">{{ file.original_filename }}</span>
+                      </span>
+                      <span class="block text-xs text-muted">{{ formatLabel(file.evidence_type) }} - {{ formatBytes(file.size_bytes) }}</span>
+                    </span>
+                    <UIcon name="i-lucide-eye" class="size-4 shrink-0 text-muted" />
+                  </button>
+                </div>
+              </div>
+
+              <div class="min-w-0 rounded-lg border border-default bg-muted/20">
+                <div class="flex items-center justify-between gap-3 border-b border-default px-4 py-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-highlighted">
+                      {{ selectedPreviewFile?.original_filename || 'Evidence preview' }}
+                    </p>
+                    <p v-if="selectedPreviewFile" class="text-xs text-muted">
+                      {{ formatLabel(selectedPreviewFile.evidence_type) }} - {{ formatBytes(selectedPreviewFile.size_bytes) }}
+                    </p>
+                  </div>
+                  <UButton
+                    v-if="selectedPreviewFile"
+                    icon="i-lucide-external-link"
+                    aria-label="Open evidence externally"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    @click="openSelectedPreviewFile"
+                  />
+                </div>
+
+                <div class="min-h-80 p-4">
+                  <div v-if="previewLoading" class="flex min-h-72 items-center justify-center text-sm text-muted">
+                    Loading secure preview...
+                  </div>
+
+                  <div v-else-if="preview?.kind === 'image' && preview.signed_url" class="flex min-h-72 items-start justify-center overflow-auto rounded-md bg-default p-3">
+                    <img
+                      :src="preview.signed_url"
+                      :alt="preview.filename"
+                      class="max-h-[34rem] max-w-full rounded border border-default object-contain"
+                    >
+                  </div>
+
+                  <div v-else-if="preview?.kind === 'text'" class="max-h-[34rem] overflow-auto rounded-md bg-default p-4">
+                    <pre class="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-highlighted">{{ preview.content }}</pre>
+                  </div>
+
+                  <div v-else-if="preview" class="flex min-h-72 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-default bg-default px-6 text-center">
+                    <UIcon name="i-lucide-file-lock-2" class="size-8 text-muted" />
+                    <div>
+                      <p class="text-sm font-medium text-highlighted">
+                        Stored securely in the evidence bucket
+                      </p>
+                      <p class="mt-1 text-sm text-muted">
+                        Word documents are kept as private uploads. Open this file to review it in Word.
+                      </p>
+                    </div>
+                    <UButton
+                      v-if="selectedPreviewFile"
+                      icon="i-lucide-external-link"
+                      label="Open file"
+                      color="neutral"
+                      variant="outline"
+                      @click="openSelectedPreviewFile"
+                    />
+                  </div>
+
+                  <div v-else class="flex min-h-72 items-center justify-center rounded-md border border-dashed border-default bg-default px-6 text-center text-sm text-muted">
+                    Select a source document or supporting evidence file to preview it here.
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="flex justify-end">

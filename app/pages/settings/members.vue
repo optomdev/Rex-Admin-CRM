@@ -15,14 +15,14 @@ const filteredMembers = computed(() => {
 <template>
   <div>
     <UPageCard
-      title="Admin Access"
-      description="V1 is intentionally locked to one Supabase Auth admin user."
+      title="User Management"
+      description="Billing access can be marked as admin or viewer while V1 remains locked to one Supabase Auth admin user."
       variant="naked"
       orientation="horizontal"
       class="mb-4"
     >
       <UBadge
-        label="Single admin V1"
+        label="Billing roles"
         color="success"
         variant="subtle"
         class="w-fit lg:ms-auto"

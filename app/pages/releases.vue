@@ -507,6 +507,16 @@ async function saveReleaseDetails(event: FormSubmitEvent<ReleaseSchema>) {
         </UCard>
       </div>
 
+      <UAlert
+        v-if="!releases?.length && status !== 'pending'"
+        class="mt-5"
+        icon="i-lucide-git-branch"
+        color="neutral"
+        variant="subtle"
+        title="No versions imported yet"
+        description="Run GitHub sync to import release, tag, or commit records for customer rollout tracking."
+      />
+
       <div v-if="status === 'pending'" class="flex justify-center py-8">
         <UButton
           icon="i-lucide-refresh-cw"
@@ -598,7 +608,15 @@ async function saveReleaseDetails(event: FormSubmitEvent<ReleaseSchema>) {
                         {{ deployment.name }}
                       </p>
                       <p class="mt-1 truncate text-sm text-muted">
-                        {{ deployment.customer?.name || 'Unlinked customer' }} · {{ deployment.environment }}
+                        <NuxtLink
+                          v-if="deployment.customer"
+                          :to="`/customers/${deployment.customer.id}`"
+                          class="hover:text-primary"
+                        >
+                          {{ deployment.customer.name }}
+                        </NuxtLink>
+                        <span v-else>Unlinked customer</span>
+                        - {{ deployment.environment }}
                       </p>
                     </div>
                     <div class="flex flex-wrap gap-2">
@@ -686,7 +704,14 @@ async function saveReleaseDetails(event: FormSubmitEvent<ReleaseSchema>) {
               >
                 <div class="min-w-0">
                   <p class="font-medium text-highlighted">
-                    {{ rollout.customer?.name || 'Unknown customer' }}
+                    <NuxtLink
+                      v-if="rollout.customer"
+                      :to="`/customers/${rollout.customer.id}`"
+                      class="hover:text-primary"
+                    >
+                      {{ rollout.customer.name }}
+                    </NuxtLink>
+                    <span v-else>Unknown customer</span>
                   </p>
                   <div class="mt-2 flex flex-wrap items-center gap-2">
                     <UBadge

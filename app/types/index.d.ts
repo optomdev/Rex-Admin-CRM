@@ -4,6 +4,7 @@ export interface Member {
   name: string
   username: string
   role: 'member' | 'owner'
+  billing_role?: 'billing_admin' | 'billing_viewer' | null
   avatar: AvatarProps
 }
 
@@ -18,6 +19,7 @@ export type ComplianceDocumentStatus = 'not_started' | 'draft' | 'evidence_pendi
 export type ComplianceEvidenceType = 'source_document' | 'supporting_evidence' | 'review_note' | 'screenshot' | 'signed_approval'
 export type ChargeStatus = 'draft' | 'open' | 'invoice_sent' | 'paid' | 'overdue' | 'void'
 export type ChargeType = 'monthly' | 'onboarding' | 'ad_hoc' | 'credit'
+export type PricingCategory = 'license' | 'module' | 'usage' | 'misc'
 export type RolloutStatus = 'not_started' | 'scheduled' | 'deployed' | 'blocked' | 'rolled_back'
 export type DeploymentEnvironment = 'demo' | 'staging' | 'production' | 'training'
 export type DeploymentStatus = 'provisioning' | 'active' | 'maintenance' | 'paused' | 'retired' | 'error'
@@ -234,6 +236,8 @@ export interface ComplianceDocument {
 export interface Charge {
   id: string
   customer_id: string
+  billing_group_id?: string | null
+  pricing_item_id?: string | null
   charge_type: ChargeType
   description: string
   amount: number
@@ -243,7 +247,104 @@ export interface Charge {
   charge_date: string
   due_date?: string | null
   paid_at?: string | null
+  notes?: string | null
   customer?: Pick<CrmCustomer, 'id' | 'name'> | null
+  billing_group?: Pick<BillingGroup, 'id' | 'name'> | null
+  pricing_item?: Pick<PricingItem, 'id' | 'name' | 'category' | 'unit_label'> | null
+}
+
+export interface PricingItem {
+  id: string
+  code: string
+  name: string
+  category: PricingCategory
+  charge_type: ChargeType
+  amount: number
+  currency: string
+  unit_label: string
+  notes?: string | null
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerPricingItem {
+  id: string
+  customer_id: string
+  pricing_item_id: string
+  quantity: number
+  unit_amount_override?: number | null
+  currency_override?: string | null
+  notes?: string | null
+  starts_on: string
+  ends_on?: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  customer?: Pick<CrmCustomer, 'id' | 'name'> | null
+  pricing_item?: Pick<PricingItem, 'id' | 'name' | 'code' | 'category' | 'charge_type' | 'amount' | 'currency' | 'unit_label'> | null
+}
+
+export interface InvoiceSettings {
+  id: boolean
+  invoice_day_of_month: number
+  due_days: number
+  invoice_timezone: string
+  cron_enabled: boolean
+  updated_at: string
+}
+
+export interface InvoiceGenerationResult {
+  billing_date: string
+  generated_count: number
+  generated: Array<{
+    customer_id: string
+    charge_id: string
+  }>
+}
+
+export interface BillingGroupAccount {
+  id: string
+  billing_group_id: string
+  customer_id: string
+  is_primary: boolean
+  notes?: string | null
+  created_at: string
+  updated_at: string
+  customer?: Pick<CrmCustomer, 'id' | 'name' | 'account_type' | 'status' | 'primary_domain'> | null
+}
+
+export interface BillingGroupPricingItem {
+  id: string
+  billing_group_id: string
+  pricing_item_id: string
+  quantity: number
+  unit_amount_override?: number | null
+  currency_override?: string | null
+  notes?: string | null
+  starts_on: string
+  ends_on?: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  pricing_item?: Pick<PricingItem, 'id' | 'name' | 'code' | 'category' | 'charge_type' | 'amount' | 'currency' | 'unit_label'> | null
+}
+
+export interface BillingGroup {
+  id: string
+  name: string
+  billing_email?: string | null
+  invoice_day_of_month: number
+  due_days: number
+  invoice_timezone: string
+  payment_method_notes?: string | null
+  notes?: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  accounts?: BillingGroupAccount[]
+  pricing_items?: BillingGroupPricingItem[]
 }
 
 export interface Release {

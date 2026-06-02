@@ -213,7 +213,14 @@ function accountTypeColor(accountType?: CustomerAccountType): UiColor {
                 Customer
               </dt>
               <dd class="mt-1 truncate font-medium text-highlighted">
-                {{ deployment.customer?.name || 'Unlinked' }}
+                <NuxtLink
+                  v-if="deployment.customer"
+                  :to="`/customers/${deployment.customer.id}`"
+                  class="hover:text-primary"
+                >
+                  {{ deployment.customer.name }}
+                </NuxtLink>
+                <span v-else>Unlinked</span>
               </dd>
               <div v-if="deployment.customer" class="mt-2 flex flex-wrap gap-2">
                 <UBadge
@@ -326,6 +333,7 @@ function accountTypeColor(accountType?: CustomerAccountType): UiColor {
         class="mt-5"
         icon="i-lucide-cloud-off"
         color="neutral"
+        variant="subtle"
         title="No deployments match that view"
         description="Clear the search or change the deployment filters."
       />

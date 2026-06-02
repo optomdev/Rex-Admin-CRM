@@ -29,10 +29,16 @@ defineProps<{
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center justify-end gap-2">
         <UBadge
           :label="member.role"
           :color="member.role === 'owner' ? 'success' : 'neutral'"
+          variant="subtle"
+        />
+        <UBadge
+          v-if="member.billing_role"
+          :label="member.billing_role.replace('_', ' ')"
+          :color="member.billing_role === 'billing_admin' ? 'primary' : 'neutral'"
           variant="subtle"
         />
       </div>

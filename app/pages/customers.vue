@@ -706,8 +706,7 @@ async function loadCustomerDetail(customerId: string) {
 }
 
 async function openCustomer(customer: CrmCustomer) {
-  detailOpen.value = true
-  await loadCustomerDetail(customer.id)
+  await navigateTo(`/customers/${customer.id}`)
 }
 
 watch([customers, () => route.query.customer], async ([rows, customerParam]) => {
@@ -716,7 +715,7 @@ watch([customers, () => route.query.customer], async ([rows, customerParam]) => 
 
   const customer = rows.find(item => item.id === customerId)
   if (customer) {
-    await openCustomer(customer)
+    await navigateTo(`/customers/${customer.id}`)
   }
 }, { immediate: true })
 
@@ -1284,8 +1283,8 @@ async function deleteBranch() {
               Updated {{ new Date(customer.updated_at).toLocaleDateString('en-GB') }}
             </p>
             <UButton
-              icon="i-lucide-panel-right-open"
-              label="Open"
+              icon="i-lucide-arrow-right"
+              label="View"
               color="neutral"
               variant="ghost"
               size="xs"
@@ -1300,6 +1299,7 @@ async function deleteBranch() {
         class="mt-5"
         icon="i-lucide-search-x"
         color="neutral"
+        variant="subtle"
         title="No customers match that view"
         description="Clear the search or change the status filter."
       />
@@ -2291,6 +2291,7 @@ async function deleteBranch() {
                 v-else
                 icon="i-lucide-history"
                 color="neutral"
+                variant="subtle"
                 title="No customer activity yet"
                 description="Tickets, onboarding, charges, and release rollout changes will appear here."
               />

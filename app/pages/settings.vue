@@ -7,13 +7,17 @@ const links = [[{
   to: '/settings',
   exact: true
 }, {
+  label: 'User management',
+  icon: 'i-lucide-users',
+  to: '/settings/members'
+}, {
   label: 'Webhook Security',
   icon: 'i-lucide-shield-check',
   to: '/settings/security'
 }, {
   label: 'System Health',
   icon: 'i-lucide-activity',
-  to: '/settings/notifications'
+  to: '/settings/health'
 }]] satisfies NavigationMenuItem[][]
 </script>
 

@@ -3,6 +3,8 @@ import { isSupabaseConfigured, serverSupabase } from '../utils/supabase'
 
 const chargeSchema = z.object({
   customer_id: z.string().uuid(),
+  billing_group_id: z.string().uuid().optional().nullable(),
+  pricing_item_id: z.string().uuid().optional().nullable(),
   charge_type: z.enum(['monthly', 'onboarding', 'ad_hoc', 'credit']),
   description: z.string().min(2),
   amount: z.coerce.number().min(0),
@@ -11,7 +13,8 @@ const chargeSchema = z.object({
   invoice_reference: z.string().trim().optional().nullable(),
   charge_date: z.string().date(),
   due_date: z.string().date().optional().nullable(),
-  paid_at: z.string().datetime().optional().nullable()
+  paid_at: z.string().datetime().optional().nullable(),
+  notes: z.string().trim().optional().nullable()
 })
 
 export default eventHandler(async (event) => {
@@ -21,9 +24,12 @@ export default eventHandler(async (event) => {
     return {
       id: crypto.randomUUID(),
       ...body,
+      billing_group_id: body.billing_group_id || null,
+      pricing_item_id: body.pricing_item_id || null,
       invoice_reference: body.invoice_reference || null,
       due_date: body.due_date || null,
       paid_at: body.paid_at || null,
+      notes: body.notes || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -34,6 +40,8 @@ export default eventHandler(async (event) => {
     .from('charges')
     .insert({
       customer_id: body.customer_id,
+      billing_group_id: body.billing_group_id || null,
+      pricing_item_id: body.pricing_item_id || null,
       charge_type: body.charge_type,
       description: body.description,
       amount: body.amount,
@@ -42,9 +50,10 @@ export default eventHandler(async (event) => {
       invoice_reference: body.invoice_reference || null,
       charge_date: body.charge_date,
       due_date: body.due_date || null,
-      paid_at: body.billing_status === 'paid' ? (body.paid_at || new Date().toISOString()) : null
+      paid_at: body.billing_status === 'paid' ? (body.paid_at || new Date().toISOString()) : null,
+      notes: body.notes || null
     })
-    .select('*, customer:customers(id,name)')
+    .select('*, customer:customers(id,name), billing_group:billing_groups(id,name), pricing_item:pricing_items(id,name,category,unit_label)')
     .single()
 
   if (charge.error) {
@@ -57,7 +66,10 @@ export default eventHandler(async (event) => {
     details: {
       billing_status: body.billing_status,
       amount: body.amount,
-      currency: body.currency.toUpperCase()
+      currency: body.currency.toUpperCase(),
+      billing_group_id: body.billing_group_id || null,
+      pricing_item_id: body.pricing_item_id || null,
+      notes: body.notes || null
     }
   })
 
@@ -71,7 +83,9 @@ export default eventHandler(async (event) => {
     metadata: {
       charge_type: body.charge_type,
       billing_status: body.billing_status,
-      invoice_reference: body.invoice_reference || null
+      invoice_reference: body.invoice_reference || null,
+      billing_group_id: body.billing_group_id || null,
+      pricing_item_id: body.pricing_item_id || null
     }
   })
 

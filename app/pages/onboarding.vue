@@ -324,7 +324,15 @@ async function updateTaskStatus(task: OnboardingTask, taskStatus: TaskStatus) {
                 <UBadge :label="project.status.replaceAll('_', ' ')" :color="statusColor(project.status)" variant="subtle" />
               </div>
               <p class="mt-2 text-sm text-muted">
-                {{ project.customer?.name }} - target go-live {{ project.go_live_target || 'not scheduled' }}
+                <NuxtLink
+                  v-if="project.customer"
+                  :to="`/customers/${project.customer.id}`"
+                  class="hover:text-primary"
+                >
+                  {{ project.customer.name }}
+                </NuxtLink>
+                <span v-else>Unknown customer</span>
+                - target go-live {{ project.go_live_target || 'not scheduled' }}
               </p>
               <p class="mt-3 text-sm text-muted">
                 {{ project.blockers || 'No blockers recorded' }}
@@ -355,6 +363,7 @@ async function updateTaskStatus(task: OnboardingTask, taskStatus: TaskStatus) {
           v-if="!projects?.length && status !== 'pending'"
           icon="i-lucide-info"
           color="neutral"
+          variant="subtle"
           title="No onboarding projects yet"
           description="Create a customer onboarding project to generate launch tasks and timeline entries."
         />

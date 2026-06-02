@@ -6,6 +6,8 @@ const billingStatuses = ['draft', 'open', 'invoice_sent', 'paid', 'overdue', 'vo
 
 const bodySchema = z.object({
   customer_id: z.string().uuid().optional(),
+  billing_group_id: z.string().uuid().optional().nullable(),
+  pricing_item_id: z.string().uuid().optional().nullable(),
   charge_type: z.enum(chargeTypes).optional(),
   description: z.string().trim().min(2).optional(),
   amount: z.coerce.number().min(0).optional(),
@@ -13,7 +15,8 @@ const bodySchema = z.object({
   billing_status: z.enum(billingStatuses).optional(),
   invoice_reference: z.string().trim().optional().nullable(),
   charge_date: z.string().date().optional(),
-  due_date: z.string().date().optional().nullable()
+  due_date: z.string().date().optional().nullable(),
+  notes: z.string().trim().optional().nullable()
 })
 
 type ChargeUpdate = z.output<typeof bodySchema>
@@ -48,7 +51,7 @@ export default eventHandler(async (event) => {
   const supabase = serverSupabase()
   const current = await supabase
     .from('charges')
-    .select('id, customer_id, charge_type, description, amount, currency, billing_status, invoice_reference, charge_date, due_date')
+    .select('id, customer_id, billing_group_id, pricing_item_id, charge_type, description, amount, currency, billing_status, invoice_reference, charge_date, due_date, notes')
     .eq('id', chargeId)
     .single()
 
@@ -59,6 +62,8 @@ export default eventHandler(async (event) => {
   const normalizedBody: ChargeUpdate & { paid_at?: string | null } = {}
 
   if ('customer_id' in body) normalizedBody.customer_id = body.customer_id
+  if ('billing_group_id' in body) normalizedBody.billing_group_id = body.billing_group_id || null
+  if ('pricing_item_id' in body) normalizedBody.pricing_item_id = body.pricing_item_id || null
   if ('charge_type' in body) normalizedBody.charge_type = body.charge_type
   if ('description' in body) normalizedBody.description = body.description?.trim()
   if ('amount' in body) normalizedBody.amount = body.amount
@@ -70,9 +75,12 @@ export default eventHandler(async (event) => {
   if ('invoice_reference' in body) normalizedBody.invoice_reference = body.invoice_reference?.trim() || null
   if ('charge_date' in body) normalizedBody.charge_date = body.charge_date
   if ('due_date' in body) normalizedBody.due_date = body.due_date || null
+  if ('notes' in body) normalizedBody.notes = body.notes?.trim() || null
 
   const currentCharge = {
     customer_id: current.data.customer_id,
+    billing_group_id: current.data.billing_group_id,
+    pricing_item_id: current.data.pricing_item_id,
     charge_type: current.data.charge_type,
     description: current.data.description,
     amount: Number(current.data.amount),
@@ -80,7 +88,8 @@ export default eventHandler(async (event) => {
     billing_status: current.data.billing_status,
     invoice_reference: current.data.invoice_reference,
     charge_date: current.data.charge_date,
-    due_date: current.data.due_date
+    due_date: current.data.due_date,
+    notes: current.data.notes
   }
 
   const changeBody = Object.fromEntries(
@@ -96,7 +105,7 @@ export default eventHandler(async (event) => {
     .from('charges')
     .update(normalizedBody)
     .eq('id', chargeId)
-    .select('*, customer:customers(id,name)')
+    .select('*, customer:customers(id,name), billing_group:billing_groups(id,name), pricing_item:pricing_items(id,name,category,unit_label)')
     .single()
 
   if (charge.error) {

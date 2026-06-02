@@ -177,7 +177,15 @@ async function addTimelineNote(event: FormSubmitEvent<NoteSchema>) {
                 </span>
               </div>
               <p class="mt-1 text-sm text-muted">
-                {{ item.customer?.name }} - {{ item.body }}
+                <NuxtLink
+                  v-if="item.customer"
+                  :to="`/customers/${item.customer.id}`"
+                  class="hover:text-primary"
+                >
+                  {{ item.customer.name }}
+                </NuxtLink>
+                <span v-else>Unknown customer</span>
+                - {{ item.body }}
               </p>
               <UBadge
                 class="mt-3"
@@ -193,6 +201,7 @@ async function addTimelineNote(event: FormSubmitEvent<NoteSchema>) {
           v-if="!filteredItems.length && status !== 'pending'"
           icon="i-lucide-history"
           color="neutral"
+          variant="subtle"
           title="No timeline items yet"
           description="Tickets, charges, onboarding updates, releases, and notes will appear here."
         />

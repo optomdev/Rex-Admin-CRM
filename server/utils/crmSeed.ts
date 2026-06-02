@@ -1,7 +1,9 @@
 import type {
+  BillingGroup,
   Charge,
   CrmCustomer,
   CrmTicket,
+  CustomerPricingItem,
   DashboardSummary,
   OnboardingProject,
   Release,
@@ -148,6 +150,197 @@ export const sampleCharges: Charge[] = [{
   charge_date: '2026-06-01',
   due_date: '2026-06-21',
   customer: sampleCustomers[1]!
+}, {
+  id: '4db2a00c-09a0-4fd1-b742-bd8285c00001',
+  customer_id: sampleCustomers[0]!.id,
+  charge_type: 'ad_hoc',
+  description: 'May SMS charges',
+  amount: 28.40,
+  currency: 'GBP',
+  billing_status: 'open',
+  invoice_reference: 'INV-2026-063',
+  charge_date: '2026-06-01',
+  due_date: '2026-06-14',
+  notes: '142 appointment reminders and recall messages.',
+  customer: sampleCustomers[0]!
+}, {
+  id: '4db2a00c-09a0-4fd1-b742-bd8285c00002',
+  customer_id: sampleCustomers[0]!.id,
+  charge_type: 'ad_hoc',
+  description: 'May postcode look ups',
+  amount: 12.60,
+  currency: 'GBP',
+  billing_status: 'paid',
+  invoice_reference: 'INV-2026-060',
+  charge_date: '2026-05-01',
+  due_date: '2026-05-14',
+  notes: '63 postcode lookups.',
+  customer: sampleCustomers[0]!
+}, {
+  id: '4db2a00c-09a0-4fd1-b742-bd8285c00003',
+  customer_id: sampleCustomers[2]!.id,
+  charge_type: 'ad_hoc',
+  description: 'IMP letter charges',
+  amount: 36,
+  currency: 'GBP',
+  billing_status: 'overdue',
+  invoice_reference: 'INV-2026-058',
+  charge_date: '2026-05-01',
+  due_date: '2026-05-14',
+  notes: '18 IMP letters generated during May.',
+  customer: sampleCustomers[2]!
+}, {
+  id: '4db2a00c-09a0-4fd1-b742-bd8285c00004',
+  customer_id: sampleCustomers[2]!.id,
+  charge_type: 'ad_hoc',
+  description: 'Remote training session',
+  amount: 85,
+  currency: 'GBP',
+  billing_status: 'invoice_sent',
+  invoice_reference: 'INV-2026-064',
+  charge_date: '2026-06-01',
+  due_date: '2026-06-14',
+  notes: 'Additional staff refresher session after rollout hold.',
+  customer: sampleCustomers[2]!
+}]
+
+export const sampleCustomerPricingItems: CustomerPricingItem[] = [{
+  id: '0f571fe7-2c4e-46d1-a684-061c09c50001',
+  customer_id: sampleCustomers[0]!.id,
+  pricing_item_id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2001',
+  quantity: 1,
+  notes: 'Main agreed Rex licence.',
+  starts_on: '2026-06-01',
+  is_active: true,
+  created_at: now,
+  updated_at: now,
+  customer: sampleCustomers[0]!,
+  pricing_item: {
+    id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2001',
+    code: 'rex-main-license',
+    name: 'Rex main license fee',
+    category: 'license',
+    charge_type: 'monthly',
+    amount: 300,
+    currency: 'GBP',
+    unit_label: 'month'
+  }
+}, {
+  id: '0f571fe7-2c4e-46d1-a684-061c09c50002',
+  customer_id: sampleCustomers[0]!.id,
+  pricing_item_id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2002',
+  quantity: 1,
+  notes: 'Hearing clinic module agreed from June.',
+  starts_on: '2026-06-01',
+  is_active: true,
+  created_at: now,
+  updated_at: now,
+  customer: sampleCustomers[0]!,
+  pricing_item: {
+    id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2002',
+    code: 'hearing-module',
+    name: 'Hearing module',
+    category: 'module',
+    charge_type: 'monthly',
+    amount: 150,
+    currency: 'GBP',
+    unit_label: 'month'
+  }
+}, {
+  id: '0f571fe7-2c4e-46d1-a684-061c09c50003',
+  customer_id: sampleCustomers[2]!.id,
+  pricing_item_id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2001',
+  quantity: 1,
+  notes: 'Core Rex licence only while release rollout is paused.',
+  starts_on: '2026-06-01',
+  is_active: true,
+  created_at: now,
+  updated_at: now,
+  customer: sampleCustomers[2]!,
+  pricing_item: {
+    id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2001',
+    code: 'rex-main-license',
+    name: 'Rex main license fee',
+    category: 'license',
+    charge_type: 'monthly',
+    amount: 300,
+    currency: 'GBP',
+    unit_label: 'month'
+  }
+}]
+
+export const sampleBillingGroups: BillingGroup[] = [{
+  id: '9a7a11f5-588f-4718-94f4-6a66daed9001',
+  name: 'Rex group billing',
+  billing_email: 'billing@abbeyroad.example',
+  invoice_day_of_month: 1,
+  due_days: 14,
+  invoice_timezone: 'Europe/London',
+  payment_method_notes: 'Card on file ending 4242.',
+  notes: 'Sample group with multiple accounts sharing Rex and Hearing pricing.',
+  is_active: true,
+  created_at: now,
+  updated_at: now,
+  accounts: [{
+    id: '1ad0e7c4-a92e-4ea0-a9be-b4b217659001',
+    billing_group_id: '9a7a11f5-588f-4718-94f4-6a66daed9001',
+    customer_id: sampleCustomers[0]!.id,
+    is_primary: true,
+    notes: 'Primary invoice account.',
+    created_at: now,
+    updated_at: now,
+    customer: sampleCustomers[0]!
+  }, {
+    id: '1ad0e7c4-a92e-4ea0-a9be-b4b217659002',
+    billing_group_id: '9a7a11f5-588f-4718-94f4-6a66daed9001',
+    customer_id: sampleCustomers[1]!.id,
+    is_primary: false,
+    notes: 'Linked account included on the same bill.',
+    created_at: now,
+    updated_at: now,
+    customer: sampleCustomers[1]!
+  }],
+  pricing_items: [{
+    id: '0aa80ebe-8d67-420e-a3ee-173dcdeed001',
+    billing_group_id: '9a7a11f5-588f-4718-94f4-6a66daed9001',
+    pricing_item_id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2001',
+    quantity: 1,
+    notes: 'Shared core Rex licence.',
+    starts_on: '2026-06-01',
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+    pricing_item: {
+      id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2001',
+      code: 'rex-main-license',
+      name: 'Rex main license fee',
+      category: 'license',
+      charge_type: 'monthly',
+      amount: 300,
+      currency: 'GBP',
+      unit_label: 'month'
+    }
+  }, {
+    id: '0aa80ebe-8d67-420e-a3ee-173dcdeed002',
+    billing_group_id: '9a7a11f5-588f-4718-94f4-6a66daed9001',
+    pricing_item_id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2002',
+    quantity: 1,
+    notes: 'Hearing module shared by the group.',
+    starts_on: '2026-06-01',
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+    pricing_item: {
+      id: 'f6407ef0-6f7b-4977-a02f-6c6fce3c2002',
+      code: 'hearing-module',
+      name: 'Hearing module',
+      category: 'module',
+      charge_type: 'monthly',
+      amount: 150,
+      currency: 'GBP',
+      unit_label: 'month'
+    }
+  }]
 }]
 
 export const sampleReleases: Release[] = [{

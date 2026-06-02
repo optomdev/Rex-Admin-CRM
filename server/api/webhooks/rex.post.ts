@@ -3,6 +3,23 @@ import { sampleTickets } from '../../utils/crmSeed'
 import { verifyWebhookSignature } from '../../utils/hmac'
 import { isSupabaseConfigured, serverSupabase } from '../../utils/supabase'
 
+type DeploymentVersionSource = {
+  id: string
+  customer_id: string
+  deployed_version?: string | null
+  git_tag?: string | null
+  git_commit?: string | null
+  release?: {
+    version?: string | null
+  } | null
+}
+
+const deploymentSelect = 'id, customer_id, deployed_version, git_tag, git_commit, release:releases(version)'
+
+function deploymentVersion(deployment?: DeploymentVersionSource | null) {
+  return deployment?.git_tag || deployment?.release?.version || deployment?.deployed_version || deployment?.git_commit || null
+}
+
 const rexTicketCreatedSchema = z.object({
   event: z.literal('support_ticket.created'),
   occurred_at: z.string().optional(),
@@ -64,11 +81,12 @@ export default eventHandler(async (event) => {
 
   let customerId: string | null = null
   let customerDeploymentId: string | null = null
+  let crmAppVersion: string | null = null
 
   if (customerIdentifier) {
     const deployment = await supabase
       .from('customer_deployments')
-      .select('id, customer_id')
+      .select(deploymentSelect)
       .eq('customer_identifier', customerIdentifier)
       .maybeSingle()
 
@@ -79,6 +97,7 @@ export default eventHandler(async (event) => {
     if (deployment.data) {
       customerId = deployment.data.customer_id
       customerDeploymentId = deployment.data.id
+      crmAppVersion = deploymentVersion(deployment.data as DeploymentVersionSource)
     } else {
       const customer = await supabase
         .from('customers')
@@ -94,11 +113,17 @@ export default eventHandler(async (event) => {
     }
   }
 
-  if (!customerId && rexProjectRef) {
-    const deployment = await supabase
+  if (!customerDeploymentId && rexProjectRef) {
+    let deploymentQuery = supabase
       .from('customer_deployments')
-      .select('id, customer_id')
+      .select(deploymentSelect)
       .eq('rex_project_ref', rexProjectRef)
+
+    if (customerId) {
+      deploymentQuery = deploymentQuery.eq('customer_id', customerId)
+    }
+
+    const deployment = await deploymentQuery
       .maybeSingle()
 
     if (deployment.error) {
@@ -108,20 +133,43 @@ export default eventHandler(async (event) => {
     if (deployment.data) {
       customerId = deployment.data.customer_id
       customerDeploymentId = deployment.data.id
+      crmAppVersion = deploymentVersion(deployment.data as DeploymentVersionSource)
     } else {
-      const customer = await supabase
-        .from('customers')
-        .select('id')
-        .eq('rex_project_ref', rexProjectRef)
-        .maybeSingle()
+      if (!customerId) {
+        const customer = await supabase
+          .from('customers')
+          .select('id')
+          .eq('rex_project_ref', rexProjectRef)
+          .maybeSingle()
 
-      if (customer.error) {
-        throw createError({ statusCode: 500, statusMessage: customer.error.message })
+        if (customer.error) {
+          throw createError({ statusCode: 500, statusMessage: customer.error.message })
+        }
+
+        customerId = customer.data?.id ?? null
       }
-
-      customerId = customer.data?.id ?? null
     }
   }
+
+  if (customerId && !customerDeploymentId) {
+    const primaryDeployment = await supabase
+      .from('customer_deployments')
+      .select(deploymentSelect)
+      .eq('customer_id', customerId)
+      .eq('is_primary', true)
+      .maybeSingle()
+
+    if (primaryDeployment.error) {
+      throw createError({ statusCode: 500, statusMessage: primaryDeployment.error.message })
+    }
+
+    if (primaryDeployment.data) {
+      customerDeploymentId = primaryDeployment.data.id
+      crmAppVersion = deploymentVersion(primaryDeployment.data as DeploymentVersionSource)
+    }
+  }
+
+  const ticketAppVersion = crmAppVersion || payload.ticket.app_version?.trim() || null
 
   const existingEvent = await supabase
     .from('webhook_events')
@@ -176,7 +224,7 @@ export default eventHandler(async (event) => {
     description: payload.ticket.description,
     screenshot_metadata: payload.ticket.screenshot_metadata,
     environment: payload.ticket.environment,
-    app_version: payload.ticket.app_version ?? null,
+    app_version: ticketAppVersion,
     webhook_payload: payload
   }
 

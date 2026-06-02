@@ -1,6 +1,6 @@
 import { serverSupabaseUser } from '#supabase/server'
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { extname, relative, sep } from 'node:path'
+import { basename, extname, relative, sep } from 'node:path'
 import { compliancePackFiles, internalComplianceDocuments } from '../../utils/complianceTracker'
 import { isSupabaseConfigured, serverSupabase } from '../../utils/supabase'
 
@@ -27,19 +27,44 @@ async function listEvidenceFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true })
   const nested = await Promise.all(entries.map(async (entry) => {
     const fullPath = `${directory}\\${entry.name}`
+    if (entry.isDirectory() && entry.name === 'Word Documents') return []
     if (entry.isDirectory()) return listEvidenceFiles(fullPath)
     if (!entry.isFile()) return []
-    return allowedExtensions.has(extname(entry.name).toLowerCase()) ? [fullPath] : []
+    return shouldImportFile(fullPath) ? [fullPath] : []
   }))
 
   return nested.flat()
 }
 
+function shouldImportFile(filePath: string) {
+  const extension = extname(filePath).toLowerCase()
+  const filename = basename(filePath)
+  const relativePath = relative(compliancePackFiles.root, filePath)
+  const isRootFile = !relativePath.includes(sep)
+
+  if (!allowedExtensions.has(extension)) return false
+  if (!isRootFile) return true
+  if (filename === 'README.md') return true
+  if (filename === 'Data Flow for Rex app.png') return true
+  if (filename === 'RexApp Go-Live Compliance Pack - Full Updated.docx') return true
+
+  return false
+}
+
 function documentIdForPath(filePath: string) {
   const relativePath = relative(compliancePackFiles.root, filePath)
+  const filename = basename(filePath)
+
+  if (filename === 'Data Flow for Rex app.png') return '01-data-flow-diagram'
+
   const firstSegment = relativePath.split(sep)[0] || ''
-  const match = firstSegment.match(/^(\d{2})\b/)
-  return match ? documentIdByFolder[match[1]!] ?? '00-pack-index' : '00-pack-index'
+  const segmentMatch = firstSegment.match(/^(\d{2})\b/)
+  if (segmentMatch) return documentIdByFolder[segmentMatch[1]!] ?? '00-pack-index'
+
+  const filenameMatch = filename.match(/^(\d{2})\b/)
+  if (filenameMatch) return documentIdByFolder[filenameMatch[1]!] ?? '00-pack-index'
+
+  return '00-pack-index'
 }
 
 function storagePathForFile(filePath: string) {

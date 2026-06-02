@@ -8,7 +8,7 @@ export default eventHandler(async () => {
 
   const { data, error } = await serverSupabase()
     .from('charges')
-    .select('*, customer:customers(id,name)')
+    .select('*, customer:customers(id,name), billing_group:billing_groups(id,name), pricing_item:pricing_items(id,name,category,unit_label)')
     .order('charge_date', { ascending: false })
 
   if (error) {

@@ -209,6 +209,10 @@ async function openTicket(ticket: CrmTicket) {
   await loadTicket(ticket.id)
 }
 
+function closeTicketDetail() {
+  detailOpen.value = false
+}
+
 async function saveWorkflow() {
   if (!selectedTicketId.value) return
 
@@ -442,7 +446,14 @@ async function saveInternalNote() {
 
           <div class="text-sm">
             <p class="font-medium text-highlighted">
-              {{ customerLabel(ticket) }}
+              <NuxtLink
+                v-if="ticket.customer"
+                :to="`/customers/${ticket.customer.id}`"
+                class="hover:text-primary"
+              >
+                {{ customerLabel(ticket) }}
+              </NuxtLink>
+              <span v-else>{{ customerLabel(ticket) }}</span>
             </p>
             <p class="mt-1 text-muted">
               {{ ticket.reporter_name || 'Unknown reporter' }}
@@ -488,10 +499,28 @@ async function saveInternalNote() {
 
       <USlideover
         v-model:open="detailOpen"
-        :title="currentTicket ? ticketTitle(currentTicket) : 'Ticket detail'"
-        :description="currentTicket?.rex_ticket_id || 'CRM ticket'"
         :ui="{ content: 'sm:max-w-3xl' }"
       >
+        <template #header>
+          <div class="flex min-w-0 flex-1 items-start justify-between gap-4">
+            <div class="min-w-0">
+              <h2 class="truncate text-base font-semibold text-highlighted">
+                {{ currentTicket ? ticketTitle(currentTicket) : 'Ticket detail' }}
+              </h2>
+              <p class="mt-1 truncate text-sm text-muted">
+                {{ currentTicket?.rex_ticket_id || 'CRM ticket' }}
+              </p>
+            </div>
+            <UButton
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              aria-label="Close ticket detail"
+              @click="closeTicketDetail"
+            />
+          </div>
+        </template>
+
         <template #body>
           <div v-if="detailLoading" class="space-y-3">
             <USkeleton class="h-20 w-full" />
@@ -739,6 +768,7 @@ async function saveInternalNote() {
                 v-else
                 icon="i-lucide-message-square"
                 color="neutral"
+                variant="subtle"
                 title="No messages yet"
                 description="Replies and internal notes will appear here."
               />

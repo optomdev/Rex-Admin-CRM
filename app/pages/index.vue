@@ -150,7 +150,14 @@ function compactTitle(text?: string | null) {
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <UBadge :label="ticket.priority" :color="ticket.priority === 'urgent' ? 'error' : ticket.priority === 'high' ? 'warning' : 'neutral'" variant="subtle" />
-                  <span class="text-sm text-muted">{{ ticket.customer?.name || 'Unlinked customer' }}</span>
+                  <NuxtLink
+                    v-if="ticket.customer"
+                    :to="`/customers/${ticket.customer.id}`"
+                    class="text-sm text-muted hover:text-primary"
+                  >
+                    {{ ticket.customer.name }}
+                  </NuxtLink>
+                  <span v-else class="text-sm text-muted">Unlinked customer</span>
                 </div>
                 <p class="mt-2 truncate font-medium text-highlighted">
                   {{ compactTitle(ticket.subject || ticket.description) }}
@@ -194,7 +201,15 @@ function compactTitle(text?: string | null) {
                     {{ item.title }}
                   </p>
                   <p class="mt-1 text-sm text-muted">
-                    {{ item.customer?.name }} - {{ item.body }}
+                    <NuxtLink
+                      v-if="item.customer"
+                      :to="`/customers/${item.customer.id}`"
+                      class="hover:text-primary"
+                    >
+                      {{ item.customer.name }}
+                    </NuxtLink>
+                    <span v-else>Unknown customer</span>
+                    - {{ item.body }}
                   </p>
                 </div>
               </div>
