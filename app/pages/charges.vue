@@ -10,6 +10,8 @@ const { data: customerPricingItems, refresh: refreshCustomerPricing } = await us
 const { data: invoiceSettings, refresh: refreshInvoiceSettings } = await useAsyncData<InvoiceSettings>('invoice-settings', () => $fetch('/api/invoice-settings'))
 const { data: billingGroups } = await useAsyncData<BillingGroup[]>('billing-groups', () => $fetch('/api/billing-groups'))
 const toast = useToast()
+const route = useRoute()
+const router = useRouter()
 
 const createOpen = ref(false)
 const editOpen = ref(false)
@@ -156,6 +158,25 @@ const customerItems = computed(() => (customers.value ?? []).map(customer => ({
   label: customer.name,
   value: customer.id
 })))
+const customerFilterItems = computed(() => [{
+  label: 'All customers',
+  value: 'all'
+}, ...customerItems.value])
+const customerFilter = computed<string>({
+  get: () => typeof route.query.customer === 'string' && route.query.customer ? route.query.customer : 'all',
+  set: (value) => {
+    const query = { ...route.query }
+
+    if (value === 'all') {
+      delete query.customer
+    } else {
+      query.customer = value
+    }
+
+    void router.replace({ query })
+  }
+})
+const selectedCustomer = computed(() => (customers.value ?? []).find(customer => customer.id === customerFilter.value) ?? null)
 
 const billingGroupItems = computed(() => [{
   label: 'No billing group',
@@ -172,8 +193,15 @@ const activeBillingGroups = computed(() => (billingGroups.value ?? []).filter(gr
 const billingGroupAccountIds = computed(() => new Set(
   activeBillingGroups.value.flatMap(group => group.accounts?.map(account => account.customer_id) ?? [])
 ))
+const scopedCustomers = computed(() => (customers.value ?? [])
+  .filter(customer => customerFilter.value === 'all' || customer.id === customerFilter.value))
+const visibleBillingGroups = computed(() => customerFilter.value === 'all'
+  ? activeBillingGroups.value
+  : activeBillingGroups.value.filter(group => group.accounts?.some(account => account.customer_id === customerFilter.value)))
+const visibleCharges = computed(() => (charges.value ?? [])
+  .filter(charge => customerFilter.value === 'all' || charge.customer_id === customerFilter.value))
 
-const customerBillingProfiles = computed(() => (customers.value ?? [])
+const customerBillingProfiles = computed(() => scopedCustomers.value
   .filter(customer => !billingGroupAccountIds.value.has(customer.id))
   .map((customer) => {
     const lines = activeCustomerPricingItems.value.filter(item => item.customer_id === customer.id)
@@ -206,7 +234,7 @@ const monthlyPricingSelectItems = computed(() => activePricingItems.value
   })))
 
 const totals = computed(() => {
-  const rows = charges.value ?? []
+  const rows = visibleCharges.value
   return {
     open: rows.filter(charge => ['open', 'invoice_sent', 'overdue'].includes(charge.billing_status)).reduce((sum, charge) => sum + charge.amount, 0),
     paid: rows.filter(charge => charge.billing_status === 'paid').reduce((sum, charge) => sum + charge.amount, 0),
@@ -222,7 +250,7 @@ const monthlyCatalogueTotal = computed(() => activePricingItems.value
 const chargeMetrics = computed(() => [{
   label: 'Open',
   value: `GBP ${totals.value.open.toLocaleString('en-GB')}`,
-  detail: 'Unpaid ledger value',
+  detail: selectedCustomer.value?.name ?? 'Unpaid ledger value',
   icon: 'i-lucide-receipt',
   color: 'warning' as const
 }, {
@@ -240,7 +268,7 @@ const chargeMetrics = computed(() => [{
 }, {
   label: 'Ledger items',
   value: totals.value.count.toString(),
-  detail: 'Manual and cron entries',
+  detail: selectedCustomer.value ? 'Filtered ledger entries' : 'Manual and cron entries',
   icon: 'i-lucide-list-ordered',
   color: 'neutral' as const
 }])
@@ -707,11 +735,50 @@ async function generateInvoices() {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton icon="i-lucide-link" label="Assign" color="neutral" variant="subtle" @click="openNewAssignment" />
-          <UButton icon="i-lucide-tags" label="Price" color="neutral" variant="subtle" @click="openNewPricingItem" />
+          <UButton
+            icon="i-lucide-link"
+            label="Assign"
+            color="neutral"
+            variant="subtle"
+            @click="openNewAssignment()"
+          />
+          <UButton
+            icon="i-lucide-tags"
+            label="Price"
+            color="neutral"
+            variant="subtle"
+            @click="openNewPricingItem"
+          />
           <UButton icon="i-lucide-plus" label="Charge" @click="createOpen = true" />
         </template>
       </UDashboardNavbar>
+
+      <UDashboardToolbar>
+        <template #left>
+          <USelect
+            v-model="customerFilter"
+            :items="customerFilterItems"
+            class="w-64"
+          />
+          <UBadge
+            v-if="selectedCustomer"
+            :label="formatStatusLabel(selectedCustomer.status)"
+            :color="customerStatusColor(selectedCustomer.status)"
+            variant="subtle"
+          />
+        </template>
+        <template #right>
+          <UButton
+            v-if="customerFilter !== 'all'"
+            to="/charges"
+            icon="i-lucide-x"
+            label="Clear"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+          />
+        </template>
+      </UDashboardToolbar>
     </template>
 
     <template #body>
@@ -805,7 +872,14 @@ async function generateInvoices() {
               License, module, usage, and misc charge catalogue
             </p>
           </div>
-          <UButton icon="i-lucide-plus" label="Price" size="sm" color="neutral" variant="outline" @click="openNewPricingItem" />
+          <UButton
+            icon="i-lucide-plus"
+            label="Price"
+            size="sm"
+            color="neutral"
+            variant="outline"
+            @click="openNewPricingItem"
+          />
         </div>
 
         <div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
@@ -835,7 +909,12 @@ async function generateInvoices() {
             <div class="mt-3 flex flex-wrap gap-2">
               <UBadge :label="item.category" :color="categoryColor(item.category)" variant="subtle" />
               <UBadge :label="item.charge_type.replaceAll('_', ' ')" color="neutral" variant="outline" />
-              <UBadge v-if="!item.is_active" label="inactive" color="neutral" variant="subtle" />
+              <UBadge
+                v-if="!item.is_active"
+                label="inactive"
+                color="neutral"
+                variant="subtle"
+              />
             </div>
             <p v-if="item.notes" class="mt-3 line-clamp-2 text-sm text-muted">
               {{ item.notes }}
@@ -856,9 +935,9 @@ async function generateInvoices() {
           </div>
         </div>
 
-        <div v-if="activeBillingGroups.length" class="grid gap-3 xl:grid-cols-2">
+        <div v-if="visibleBillingGroups.length" class="grid gap-3 xl:grid-cols-2">
           <div
-            v-for="group in activeBillingGroups"
+            v-for="group in visibleBillingGroups"
             :key="group.id"
             class="rounded-lg border border-default bg-default p-4 shadow-xs"
           >
@@ -978,7 +1057,14 @@ async function generateInvoices() {
               Customer-level monthly assignments used when no billing group exists
             </p>
           </div>
-          <UButton icon="i-lucide-plus" label="Assign" size="sm" color="neutral" variant="outline" @click="openNewAssignment" />
+          <UButton
+            icon="i-lucide-plus"
+            label="Assign"
+            size="sm"
+            color="neutral"
+            variant="outline"
+            @click="openNewAssignment()"
+          />
         </div>
 
         <div v-if="customerBillingProfiles.length" class="grid gap-3 lg:grid-cols-2">
@@ -1071,7 +1157,7 @@ async function generateInvoices() {
           <span>Status</span>
         </div>
         <div
-          v-for="charge in charges"
+          v-for="charge in visibleCharges"
           :key="charge.id"
           class="grid gap-3 border-b border-default p-4 last:border-b-0 md:grid-cols-[1fr_10rem_9rem_9rem_15rem] md:items-center"
         >
@@ -1137,7 +1223,7 @@ async function generateInvoices() {
         </div>
 
         <UAlert
-          v-if="!charges?.length && status !== 'pending'"
+          v-if="!visibleCharges.length && status !== 'pending'"
           class="m-4"
           icon="i-lucide-receipt-text"
           color="neutral"
@@ -1490,7 +1576,12 @@ async function generateInvoices() {
               </UFormField>
 
               <UFormField label="Quantity" name="quantity">
-                <UInputNumber v-model="assignmentState.quantity" :min="0.01" :step="1" class="w-full" />
+                <UInputNumber
+                  v-model="assignmentState.quantity"
+                  :min="0.01"
+                  :step="1"
+                  class="w-full"
+                />
               </UFormField>
             </div>
 

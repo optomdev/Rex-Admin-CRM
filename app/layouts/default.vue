@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
+import type { CrmCustomer, CrmTicket } from '~/types'
 
 const open = ref(false)
+const searchOpen = ref(false)
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 
@@ -11,6 +13,24 @@ const signOut = async () => {
   await supabase.auth.signOut()
   await navigateTo('/login')
 }
+
+const { data: searchCustomers, refresh: refreshSearchCustomers } = useLazyAsyncData<CrmCustomer[]>(
+  'global-search-customers',
+  () => $fetch('/api/customers'),
+  { server: false, default: () => [] }
+)
+const { data: searchTickets, refresh: refreshSearchTickets } = useLazyAsyncData<CrmTicket[]>(
+  'global-search-tickets',
+  () => $fetch('/api/tickets'),
+  { server: false, default: () => [] }
+)
+
+watch(searchOpen, (isOpen) => {
+  if (isOpen) {
+    refreshSearchCustomers()
+    refreshSearchTickets()
+  }
+})
 
 const links = [[{
   label: 'Control',
@@ -84,18 +104,51 @@ const links = [[{
   }
 }]] satisfies NavigationMenuItem[][]
 
+const openSearchTickets = computed(() => (searchTickets.value ?? [])
+  .filter(ticket => !['resolved', 'closed'].includes(ticket.status)))
+
 const groups = computed(() => [{
+  id: 'customers',
+  label: 'Customers',
+  items: (searchCustomers.value ?? []).map(customer => ({
+    id: `customer-${customer.id}`,
+    label: customer.name,
+    suffix: [customer.primary_domain, formatStatusLabel(customer.status)].filter(Boolean).join(' - '),
+    icon: customerStatusIcon(customer.status),
+    to: `/customers/${customer.id}`
+  }))
+}, {
+  id: 'tickets',
+  label: 'Open tickets',
+  items: openSearchTickets.value.map(ticket => ({
+    id: `ticket-${ticket.id}`,
+    label: ticket.subject || ticket.description.split('\n')[0] || 'Untitled ticket',
+    suffix: [ticket.customer?.name || ticket.customer_identifier, formatStatusLabel(ticket.status)].filter(Boolean).join(' - '),
+    icon: ['urgent', 'high'].includes(ticket.priority) ? 'i-lucide-siren' : 'i-lucide-life-buoy',
+    to: `/tickets?ticket=${ticket.id}`
+  }))
+}, {
   id: 'links',
-  label: 'CRM',
+  label: 'Pages',
   items: links.flat()
 }, {
   id: 'actions',
-  label: 'Actions',
+  label: 'Quick actions',
   items: [{
+    id: 'new-customer',
+    label: 'New customer',
+    icon: 'i-lucide-user-plus',
+    to: '/customers?new=1'
+  }, {
     id: 'sync-releases',
     label: 'Sync GitHub releases',
     icon: 'i-lucide-refresh-cw',
     to: '/releases'
+  }, {
+    id: 'system-health',
+    label: 'Check system health',
+    icon: 'i-lucide-activity',
+    to: '/settings/health'
   }]
 }])
 </script>
@@ -171,7 +224,7 @@ const groups = computed(() => [{
       </template>
     </UDashboardSidebar>
 
-    <UDashboardSearch :groups="groups" />
+    <UDashboardSearch v-model:open="searchOpen" :groups="groups" placeholder="Search customers, tickets, pages..." />
 
     <slot />
   </UDashboardGroup>

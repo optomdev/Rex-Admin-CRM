@@ -96,10 +96,12 @@ export default eventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: error.message })
   }
 
+  const statusChanged = changes.some(([key]) => key === 'status')
+
   await supabase.from('customer_timeline_items').insert({
     customer_id: data.id,
     item_type: 'note',
-    title: 'Customer record updated',
+    title: statusChanged ? `Status changed to ${String(data.status).replaceAll('_', ' ')}` : 'Customer record updated',
     body: data.name,
     related_table: 'customers',
     related_id: data.id,

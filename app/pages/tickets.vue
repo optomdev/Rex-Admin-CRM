@@ -18,6 +18,8 @@ const replyBody = ref('')
 const internalNote = ref('')
 const ticketDetail = ref<TicketDetail | null>(null)
 const toast = useToast()
+const route = useRoute()
+const router = useRouter()
 
 const { data: tickets, status, refresh } = await useAsyncData<CrmTicket[]>('tickets', () => $fetch('/api/tickets'))
 const { data: customers } = await useAsyncData<CrmCustomer[]>('ticket-customers', () => $fetch('/api/customers'))
@@ -93,7 +95,7 @@ const queueStats = computed(() => [{
 }, {
   label: 'Customers',
   value: activeCustomerCount.value.toString(),
-  detail: oldestOpenTicket.value ? `Oldest open ${formatRelativeAge(oldestOpenTicket.value.created_at)}` : 'All clear',
+  detail: oldestOpenTicket.value ? `Oldest open ${formatRelativeTime(oldestOpenTicket.value.created_at)}` : 'All clear',
   icon: 'i-lucide-building-2',
   tone: 'neutral' as const
 }])
@@ -142,32 +144,6 @@ function lastEmailError(message: TicketMessage) {
   return typeof error === 'string' && error ? error : null
 }
 
-function formatStatus(ticketStatus: string) {
-  return ticketStatus.replaceAll('_', ' ')
-}
-
-function formatDateTime(date: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(date))
-}
-
-function formatRelativeAge(date: string) {
-  const diff = Date.now() - new Date(date).getTime()
-  const minutes = Math.max(1, Math.floor(diff / 60000))
-
-  if (minutes < 60) return `${minutes}m ago`
-
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
-
 function ticketTitle(ticket: CrmTicket) {
   return ticket.subject || ticket.description.split('\n')[0] || 'Untitled ticket'
 }
@@ -212,6 +188,16 @@ async function openTicket(ticket: CrmTicket) {
 function closeTicketDetail() {
   detailOpen.value = false
 }
+
+watch(() => route.query.ticket, async (ticketParam) => {
+  if (!import.meta.client) return
+
+  if (typeof ticketParam === 'string' && ticketParam) {
+    detailOpen.value = true
+    router.replace({ query: { ...route.query, ticket: undefined } })
+    await loadTicket(ticketParam)
+  }
+}, { immediate: true })
 
 async function saveWorkflow() {
   if (!selectedTicketId.value) return
@@ -434,7 +420,7 @@ async function saveInternalNote() {
                 variant="subtle"
               />
               <span class="text-sm text-muted">{{ ticket.rex_ticket_id || 'No Rex id yet' }}</span>
-              <span class="text-sm text-muted">{{ formatRelativeAge(ticket.created_at) }}</span>
+              <span class="text-sm text-muted">{{ formatRelativeTime(ticket.created_at) }}</span>
             </div>
             <p class="mt-2 font-medium text-highlighted">
               {{ ticketTitle(ticket) }}
@@ -466,7 +452,7 @@ async function saveInternalNote() {
           <div class="flex items-start justify-between gap-3 xl:justify-end">
             <div class="text-sm xl:text-right">
               <UBadge
-                :label="formatStatus(ticket.status)"
+                :label="formatStatusLabel(ticket.status)"
                 :icon="statusIcon[ticket.status]"
                 :color="statusTone[ticket.status]"
                 variant="outline"
@@ -475,7 +461,7 @@ async function saveInternalNote() {
                 {{ ticket.app_version || 'No version' }}
               </p>
               <p class="mt-1 text-xs text-muted">
-                Updated {{ formatRelativeAge(ticket.updated_at) }}
+                Updated {{ formatRelativeTime(ticket.updated_at) }}
               </p>
             </div>
             <UIcon name="i-lucide-chevron-right" class="mt-1 size-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-highlighted" />
@@ -534,7 +520,7 @@ async function saveInternalNote() {
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2">
                     <UBadge
-                      :label="formatStatus(currentTicket.status)"
+                      :label="formatStatusLabel(currentTicket.status)"
                       :icon="statusIcon[currentTicket.status]"
                       :color="statusTone[currentTicket.status]"
                       variant="subtle"
@@ -615,7 +601,7 @@ async function saveInternalNote() {
                   {{ formatDateTime(currentTicket.updated_at) }}
                 </p>
                 <p class="text-xs text-muted">
-                  {{ formatRelativeAge(currentTicket.updated_at) }}
+                  {{ formatRelativeTime(currentTicket.updated_at) }}
                 </p>
               </div>
             </div>

@@ -61,7 +61,7 @@ export default eventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Missing deployment id' })
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     name: body.name,
     environment: body.environment,
     status: body.status,
@@ -85,9 +85,13 @@ export default eventHandler(async (event) => {
     deploy_status: body.deploy_status,
     last_deployed_at: normalizeTimestamp(body.last_deployed_at, 'Last deployed at'),
     last_smoke_tested_at: normalizeTimestamp(body.last_smoke_tested_at, 'Smoke tested at'),
-    last_seen_at: normalizeTimestamp(body.last_seen_at, 'Last seen at'),
     is_primary: body.is_primary,
     notes: body.notes || null
+  }
+
+  // last_seen_at is maintained by webhook traffic; only overwrite it when the client explicitly sends it
+  if (body.last_seen_at !== undefined) {
+    payload.last_seen_at = normalizeTimestamp(body.last_seen_at, 'Last seen at')
   }
 
   if (!isSupabaseConfigured()) {

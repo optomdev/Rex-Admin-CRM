@@ -9,6 +9,8 @@ const typeFilter = ref<'All' | TimelineItem['item_type']>('All')
 const noteOpen = ref(false)
 const noteSaving = ref(false)
 const toast = useToast()
+const route = useRoute()
+const router = useRouter()
 
 const typeItems = ['All', 'ticket', 'message', 'onboarding', 'charge', 'release', 'note']
 const noteSchema = z.object({
@@ -29,16 +31,37 @@ const customerItems = computed(() => (customers.value ?? []).map(customer => ({
   label: customer.name,
   value: customer.id
 })))
+const customerFilterItems = computed(() => [{
+  label: 'All customers',
+  value: 'all'
+}, ...customerItems.value])
+const customerFilter = computed<string>({
+  get: () => typeof route.query.customer === 'string' && route.query.customer ? route.query.customer : 'all',
+  set: (value) => {
+    const query = { ...route.query }
+
+    if (value === 'all') {
+      delete query.customer
+    } else {
+      query.customer = value
+    }
+
+    void router.replace({ query })
+  }
+})
+const selectedCustomer = computed(() => (customers.value ?? []).find(customer => customer.id === customerFilter.value) ?? null)
+const customerScopedItems = computed(() => (items.value ?? [])
+  .filter(item => customerFilter.value === 'all' || item.customer_id === customerFilter.value))
 
 const filteredItems = computed(() => {
-  const rows = items.value ?? []
+  const rows = customerScopedItems.value
   return typeFilter.value === 'All'
     ? rows
     : rows.filter(item => item.item_type === typeFilter.value)
 })
 
 const timelineStats = computed(() => {
-  const rows = items.value ?? []
+  const rows = customerScopedItems.value
   return [{
     label: 'Events',
     value: rows.length.toString(),
@@ -77,6 +100,12 @@ function resetNoteForm() {
   noteState.title = ''
   noteState.body = ''
 }
+
+watch(noteOpen, (open) => {
+  if (open && customerFilter.value !== 'all' && !noteState.customer_id) {
+    noteState.customer_id = customerFilter.value
+  }
+})
 
 async function addTimelineNote(event: FormSubmitEvent<NoteSchema>) {
   noteSaving.value = true
@@ -125,6 +154,28 @@ async function addTimelineNote(event: FormSubmitEvent<NoteSchema>) {
       <UDashboardToolbar>
         <template #left>
           <USelect v-model="typeFilter" :items="typeItems" class="w-48" />
+          <USelect
+            v-model="customerFilter"
+            :items="customerFilterItems"
+            class="w-64"
+          />
+          <UBadge
+            v-if="selectedCustomer"
+            :label="formatStatusLabel(selectedCustomer.status)"
+            :color="customerStatusColor(selectedCustomer.status)"
+            variant="subtle"
+          />
+        </template>
+        <template #right>
+          <UButton
+            v-if="customerFilter !== 'all'"
+            to="/timeline"
+            icon="i-lucide-x"
+            label="Clear"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+          />
         </template>
       </UDashboardToolbar>
     </template>

@@ -26,6 +26,16 @@ export type DeploymentStatus = 'provisioning' | 'active' | 'maintenance' | 'paus
 export type DeploymentHealthStatus = 'unknown' | 'healthy' | 'degraded' | 'down'
 export type DeploymentDeployStatus = 'unknown' | 'building' | 'deployed' | 'failed' | 'rolled_back'
 
+export interface CustomerPipelineSignals {
+  onboarding_readiness_score?: number | null
+  onboarding_go_live_target?: string | null
+  onboarding_status?: OnboardingStatus | null
+  onboarding_blockers?: string | null
+  onboarding_blocked: boolean
+  days_since_last_touch?: number | null
+  last_touch_at?: string | null
+}
+
 export interface CrmCustomer {
   id: string
   name: string
@@ -42,6 +52,7 @@ export interface CrmCustomer {
   onboarding_fee: number
   created_at: string
   updated_at: string
+  pipeline?: CustomerPipelineSignals
 }
 
 export interface CustomerContact {
