@@ -233,46 +233,6 @@ const monthlyPricingSelectItems = computed(() => activePricingItems.value
     value: item.id
   })))
 
-const totals = computed(() => {
-  const rows = visibleCharges.value
-  return {
-    open: rows.filter(charge => ['open', 'invoice_sent', 'overdue'].includes(charge.billing_status)).reduce((sum, charge) => sum + charge.amount, 0),
-    paid: rows.filter(charge => charge.billing_status === 'paid').reduce((sum, charge) => sum + charge.amount, 0),
-    overdue: rows.filter(charge => charge.billing_status === 'overdue').reduce((sum, charge) => sum + charge.amount, 0),
-    count: rows.length
-  }
-})
-
-const monthlyCatalogueTotal = computed(() => activePricingItems.value
-  .filter(item => item.charge_type === 'monthly')
-  .reduce((sum, item) => sum + item.amount, 0))
-
-const chargeMetrics = computed(() => [{
-  label: 'Open',
-  value: `GBP ${totals.value.open.toLocaleString('en-GB')}`,
-  detail: selectedCustomer.value?.name ?? 'Unpaid ledger value',
-  icon: 'i-lucide-receipt',
-  color: 'warning' as const
-}, {
-  label: 'Monthly pricing',
-  value: `GBP ${monthlyCatalogueTotal.value.toLocaleString('en-GB')}`,
-  detail: 'Active catalogue total',
-  icon: 'i-lucide-banknote',
-  color: 'primary' as const
-}, {
-  label: 'Overdue',
-  value: `GBP ${totals.value.overdue.toLocaleString('en-GB')}`,
-  detail: totals.value.overdue ? 'Needs chasing' : 'Nothing overdue',
-  icon: totals.value.overdue ? 'i-lucide-octagon-alert' : 'i-lucide-shield-check',
-  color: totals.value.overdue ? 'error' as const : 'success' as const
-}, {
-  label: 'Ledger items',
-  value: totals.value.count.toString(),
-  detail: selectedCustomer.value ? 'Filtered ledger entries' : 'Manual and cron entries',
-  icon: 'i-lucide-list-ordered',
-  color: 'neutral' as const
-}])
-
 const invoiceCronSummary = computed(() => {
   const settings = invoiceSettings.value
   if (!settings) return 'Invoice cron settings are loading.'
@@ -782,31 +742,6 @@ async function generateInvoices() {
     </template>
 
     <template #body>
-      <div class="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div
-          v-for="metric in chargeMetrics"
-          :key="metric.label"
-          class="rounded-lg border border-default bg-default p-4 shadow-xs"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm text-muted">
-                {{ metric.label }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-highlighted">
-                {{ metric.value }}
-              </p>
-              <p class="mt-1 truncate text-sm text-muted">
-                {{ metric.detail }}
-              </p>
-            </div>
-            <UBadge :color="metric.color" variant="subtle" square>
-              <UIcon :name="metric.icon" class="size-4" />
-            </UBadge>
-          </div>
-        </div>
-      </div>
-
       <section class="mb-5 rounded-lg border border-default bg-default p-4 shadow-xs">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div class="min-w-0">

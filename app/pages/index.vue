@@ -3,51 +3,66 @@ import type { DashboardSummary } from '~/types'
 
 const { data, status, refresh } = await useAsyncData<DashboardSummary>('dashboard-summary', () => $fetch('/api/summary'))
 
-const metricColor = (tone: DashboardSummary['metrics'][number]['tone']) => {
-  if (tone === 'error') return 'error'
-  if (tone === 'warning') return 'warning'
-  if (tone === 'success') return 'success'
-  if (tone === 'secondary') return 'secondary'
-  if (tone === 'primary') return 'primary'
-  return 'neutral'
+const openTickets = computed(() => (data.value?.tickets ?? []).filter(ticket => !['resolved', 'closed'].includes(ticket.status)))
+const urgentTickets = computed(() => openTickets.value.filter(ticket => ['urgent', 'high'].includes(ticket.priority)))
+const atRiskCustomers = computed(() => (data.value?.customers ?? []).filter(customer => customer.status === 'at_risk' || customer.health_score < 65))
+const overdueCharges = computed(() => (data.value?.charges ?? []).filter(charge => charge.billing_status === 'overdue'))
+const blockedLaunches = computed(() => (data.value?.onboarding ?? []).filter(project => project.status === 'blocked'))
+
+const attentionItems = computed(() => {
+  const items: Array<{ label: string, detail: string, icon: string, to: string, urgent: boolean }> = []
+
+  if (urgentTickets.value.length) {
+    items.push({
+      label: `${urgentTickets.value.length} high-priority ticket${urgentTickets.value.length === 1 ? '' : 's'}`,
+      detail: urgentTickets.value[0]?.subject || urgentTickets.value[0]?.description.split('\n')[0] || '',
+      icon: 'i-lucide-siren',
+      to: '/tickets',
+      urgent: true
+    })
+  }
+
+  if (blockedLaunches.value.length) {
+    items.push({
+      label: `${blockedLaunches.value.length} launch${blockedLaunches.value.length === 1 ? '' : 'es'} blocked`,
+      detail: blockedLaunches.value.map(project => project.customer?.name || project.name).join(', '),
+      icon: 'i-lucide-octagon-alert',
+      to: '/onboarding',
+      urgent: true
+    })
+  }
+
+  if (atRiskCustomers.value.length) {
+    items.push({
+      label: `${atRiskCustomers.value.length} customer${atRiskCustomers.value.length === 1 ? '' : 's'} at risk`,
+      detail: atRiskCustomers.value.map(customer => customer.name).join(', '),
+      icon: 'i-lucide-heart-pulse',
+      to: '/customers',
+      urgent: false
+    })
+  }
+
+  if (overdueCharges.value.length) {
+    items.push({
+      label: `${overdueCharges.value.length} overdue charge${overdueCharges.value.length === 1 ? '' : 's'}`,
+      detail: overdueCharges.value.map(charge => charge.customer?.name).filter(Boolean).join(', '),
+      icon: 'i-lucide-receipt',
+      to: '/charges',
+      urgent: false
+    })
+  }
+
+  return items
+})
+
+function priorityDot(priority: string) {
+  if (priority === 'urgent') return 'bg-error'
+  if (priority === 'high') return 'bg-warning'
+  return 'bg-(--ui-border-accented)'
 }
 
-const activeLaunches = computed(() => data.value?.onboarding.filter(project => !['live', 'paused'].includes(project.status)) ?? [])
-const atRiskCustomers = computed(() => data.value?.customers.filter(customer => customer.status === 'at_risk' || customer.health_score < 65) ?? [])
-const openCharges = computed(() => data.value?.charges.filter(charge => ['open', 'invoice_sent', 'overdue'].includes(charge.billing_status)) ?? [])
-
-const commandFeed = computed(() => [{
-  label: 'Live tickets',
-  value: `${data.value?.tickets.length ?? 0}`,
-  detail: 'Latest support signals',
-  icon: 'i-lucide-life-buoy',
-  to: '/tickets',
-  color: 'primary' as const
-}, {
-  label: 'Launches',
-  value: `${activeLaunches.value.length}`,
-  detail: 'Onboarding in motion',
-  icon: 'i-lucide-rocket',
-  to: '/onboarding',
-  color: 'secondary' as const
-}, {
-  label: 'Attention',
-  value: `${atRiskCustomers.value.length}`,
-  detail: 'Customer health watch',
-  icon: atRiskCustomers.value.length ? 'i-lucide-heart-pulse' : 'i-lucide-shield-check',
-  to: '/customers',
-  color: atRiskCustomers.value.length ? 'warning' as const : 'success' as const
-}, {
-  label: 'Ledger',
-  value: `${openCharges.value.length}`,
-  detail: 'Open charge items',
-  icon: 'i-lucide-receipt',
-  to: '/charges',
-  color: 'warning' as const
-}])
-
-function compactTitle(text?: string | null) {
-  return text || 'Untitled item'
+function ticketTitle(subject?: string | null, description?: string | null) {
+  return subject || description?.split('\n')[0] || 'Untitled ticket'
 }
 </script>
 
@@ -60,80 +75,52 @@ function compactTitle(text?: string | null) {
         </template>
 
         <template #right>
-          <UTooltip text="Refresh dashboard">
-            <UButton
-              icon="i-lucide-refresh-cw"
-              color="neutral"
-              variant="ghost"
-              :loading="status === 'pending'"
-              @click="refresh()"
-            />
-          </UTooltip>
+          <UButton
+            icon="i-lucide-refresh-cw"
+            color="neutral"
+            variant="ghost"
+            :loading="status === 'pending'"
+            @click="refresh()"
+          />
         </template>
       </UDashboardNavbar>
     </template>
 
     <template #body>
-      <div class="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <NuxtLink
-          v-for="item in commandFeed"
-          :key="item.label"
-          :to="item.to"
-          class="rounded-lg border border-default bg-default p-4 shadow-xs transition hover:bg-elevated/60 hover:ring-2 hover:ring-primary/20"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm text-muted">
-                {{ item.label }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-highlighted">
-                {{ item.value }}
-              </p>
-              <p class="mt-1 truncate text-sm text-muted">
-                {{ item.detail }}
-              </p>
-            </div>
-            <UBadge :color="item.color" variant="subtle" square>
-              <UIcon :name="item.icon" class="size-4" />
-            </UBadge>
-          </div>
-        </NuxtLink>
-      </div>
+      <section>
+        <h2 class="text-base font-semibold text-highlighted">
+          Needs attention
+        </h2>
 
-      <div class="grid gap-4 lg:grid-cols-4">
-        <UCard
-          v-for="metric in data?.metrics"
-          :key="metric.label"
-          :ui="{ root: 'rounded-lg', body: 'p-4 sm:p-4' }"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-sm text-muted">
-                {{ metric.label }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-highlighted">
-                {{ metric.value }}
-              </p>
-              <p class="mt-1 text-sm text-muted">
-                {{ metric.detail }}
-              </p>
-            </div>
-            <UBadge :color="metricColor(metric.tone)" variant="subtle" square>
-              <UIcon :name="metric.icon" class="size-4" />
-            </UBadge>
-          </div>
-        </UCard>
-      </div>
+        <ul v-if="attentionItems.length" class="mt-3 space-y-2">
+          <li v-for="item in attentionItems" :key="item.label">
+            <NuxtLink :to="item.to" class="group flex items-center gap-2 text-sm">
+              <UIcon
+                :name="item.icon"
+                class="size-4 shrink-0"
+                :class="item.urgent ? 'text-error' : 'text-warning'"
+              />
+              <span class="font-medium text-highlighted group-hover:underline">{{ item.label }}</span>
+              <span class="truncate text-muted">— {{ item.detail }}</span>
+            </NuxtLink>
+          </li>
+        </ul>
 
-      <div class="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <section class="space-y-3">
+        <p v-else class="mt-3 flex items-center gap-2 text-sm text-muted">
+          <UIcon name="i-lucide-circle-check" class="size-4 text-success" />
+          All clear. Nothing needs you right now.
+        </p>
+      </section>
+
+      <div class="mt-8 grid gap-8 xl:grid-cols-[1.2fr_1fr]">
+        <section>
           <div class="flex items-center justify-between">
             <h2 class="text-base font-semibold text-highlighted">
-              Active Tickets
+              Open Tickets
             </h2>
             <UButton
               to="/tickets"
-              label="Open tickets"
+              label="All tickets"
               icon="i-lucide-arrow-right"
               color="neutral"
               variant="ghost"
@@ -141,44 +128,38 @@ function compactTitle(text?: string | null) {
             />
           </div>
 
-          <div class="divide-y divide-default rounded-lg border border-default">
-            <div
-              v-for="ticket in data?.tickets"
+          <div v-if="openTickets.length" class="mt-2 divide-y divide-default">
+            <NuxtLink
+              v-for="ticket in openTickets"
               :key="ticket.id"
-              class="grid gap-3 p-4 md:grid-cols-[1fr_auto] md:items-center"
+              :to="`/tickets?ticket=${ticket.id}`"
+              class="flex items-center gap-3 py-3 transition hover:bg-elevated/40"
             >
-              <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <UBadge :label="ticket.priority" :color="ticket.priority === 'urgent' ? 'error' : ticket.priority === 'high' ? 'warning' : 'neutral'" variant="subtle" />
-                  <NuxtLink
-                    v-if="ticket.customer"
-                    :to="`/customers/${ticket.customer.id}`"
-                    class="text-sm text-muted hover:text-primary"
-                  >
-                    {{ ticket.customer.name }}
-                  </NuxtLink>
-                  <span v-else class="text-sm text-muted">Unlinked customer</span>
-                </div>
-                <p class="mt-2 truncate font-medium text-highlighted">
-                  {{ compactTitle(ticket.subject || ticket.description) }}
+              <span class="size-2 shrink-0 rounded-full" :class="priorityDot(ticket.priority)" />
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-medium text-highlighted">
+                  {{ ticketTitle(ticket.subject, ticket.description) }}
                 </p>
-                <p class="mt-1 truncate text-sm text-muted">
-                  {{ ticket.reporter_name }} - {{ ticket.page_url }}
+                <p class="mt-0.5 truncate text-sm text-muted">
+                  {{ ticket.customer?.name || 'Unlinked customer' }} · {{ formatStatusLabel(ticket.status) }}
                 </p>
               </div>
-              <UBadge :label="ticket.status.replaceAll('_', ' ')" color="primary" variant="outline" />
-            </div>
+              <span class="shrink-0 text-xs text-muted">{{ formatRelativeTime(ticket.created_at) }}</span>
+            </NuxtLink>
           </div>
+          <p v-else class="mt-3 text-sm text-muted">
+            No open tickets.
+          </p>
         </section>
 
-        <section class="space-y-3">
+        <section>
           <div class="flex items-center justify-between">
             <h2 class="text-base font-semibold text-highlighted">
-              Customer Timeline
+              Recent Activity
             </h2>
             <UButton
               to="/timeline"
-              label="View all"
+              label="Timeline"
               icon="i-lucide-arrow-right"
               color="neutral"
               variant="ghost"
@@ -186,35 +167,34 @@ function compactTitle(text?: string | null) {
             />
           </div>
 
-          <div class="space-y-3">
+          <div v-if="data?.timeline?.length" class="mt-2 divide-y divide-default">
             <div
-              v-for="item in data?.timeline"
+              v-for="item in data.timeline"
               :key="item.id"
-              class="rounded-lg border border-default p-4"
+              class="py-3"
             >
-              <div class="flex items-start gap-3">
-                <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-elevated">
-                  <UIcon name="i-lucide-history" class="size-4 text-muted" />
-                </div>
-                <div class="min-w-0">
-                  <p class="font-medium text-highlighted">
-                    {{ item.title }}
-                  </p>
-                  <p class="mt-1 text-sm text-muted">
-                    <NuxtLink
-                      v-if="item.customer"
-                      :to="`/customers/${item.customer.id}`"
-                      class="hover:text-primary"
-                    >
-                      {{ item.customer.name }}
-                    </NuxtLink>
-                    <span v-else>Unknown customer</span>
-                    - {{ item.body }}
-                  </p>
-                </div>
+              <div class="flex items-baseline justify-between gap-3">
+                <p class="min-w-0 truncate font-medium text-highlighted">
+                  {{ item.title }}
+                </p>
+                <span class="shrink-0 text-xs text-muted">{{ formatRelativeTime(item.occurred_at) }}</span>
               </div>
+              <p class="mt-0.5 truncate text-sm text-muted">
+                <NuxtLink
+                  v-if="item.customer"
+                  :to="`/customers/${item.customer.id}`"
+                  class="hover:underline"
+                >
+                  {{ item.customer.name }}
+                </NuxtLink>
+                <span v-if="item.customer && item.body"> · </span>
+                <span v-if="item.body">{{ item.body }}</span>
+              </p>
             </div>
           </div>
+          <p v-else class="mt-3 text-sm text-muted">
+            No activity yet.
+          </p>
         </section>
       </div>
     </template>

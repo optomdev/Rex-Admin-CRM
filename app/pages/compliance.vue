@@ -42,36 +42,6 @@ const uploadState = reactive<Record<string, {
 }>>({})
 
 const rows = computed(() => documents.value ?? [])
-const blockerDocuments = computed(() => rows.value.filter(document => document.go_live_blocker && document.document_status !== 'approved'))
-const approvedDocuments = computed(() => rows.value.filter(document => document.document_status === 'approved'))
-const evidenceFileCount = computed(() => rows.value.reduce((sum, document) => sum + (document.files?.length ?? 0), 0))
-const readiness = computed(() => rows.value.length ? Math.round((approvedDocuments.value.length / rows.value.length) * 100) : 0)
-
-const complianceStats = computed(() => [{
-  label: 'Evidence Docs',
-  value: rows.value.length.toString(),
-  detail: 'Internal pack records',
-  icon: 'i-lucide-folder-lock',
-  color: 'primary' as const
-}, {
-  label: 'Go-Live Blockers',
-  value: blockerDocuments.value.length.toString(),
-  detail: blockerDocuments.value.length ? 'Open approval gates' : 'No open blockers',
-  icon: blockerDocuments.value.length ? 'i-lucide-octagon-alert' : 'i-lucide-shield-check',
-  color: blockerDocuments.value.length ? 'warning' as const : 'success' as const
-}, {
-  label: 'Approved',
-  value: `${readiness.value}%`,
-  detail: `${approvedDocuments.value.length}/${rows.value.length || 0} documents`,
-  icon: 'i-lucide-circle-check',
-  color: readiness.value >= 80 ? 'success' as const : 'warning' as const
-}, {
-  label: 'Bucket Files',
-  value: evidenceFileCount.value.toString(),
-  detail: 'Private Supabase uploads',
-  icon: 'i-lucide-database',
-  color: evidenceFileCount.value ? 'success' as const : 'neutral' as const
-}])
 
 function statusColor(documentStatus: ComplianceDocumentStatus) {
   if (documentStatus === 'approved') return 'success'
@@ -405,32 +375,7 @@ async function previewEvidenceFile(file: ComplianceEvidenceFile) {
     </template>
 
     <template #body>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div
-          v-for="metric in complianceStats"
-          :key="metric.label"
-          class="rounded-lg border border-default bg-default p-4 shadow-xs"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm text-muted">
-                {{ metric.label }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-highlighted">
-                {{ metric.value }}
-              </p>
-              <p class="mt-1 truncate text-sm text-muted">
-                {{ metric.detail }}
-              </p>
-            </div>
-            <UBadge :color="metric.color" variant="subtle" square>
-              <UIcon :name="metric.icon" class="size-4" />
-            </UBadge>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-5 rounded-lg border border-primary/30 bg-primary/10 p-4">
+      <div class="rounded-lg border border-primary/30 bg-primary/10 p-4">
         <div class="flex items-start gap-3">
           <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary">
             <UIcon name="i-lucide-lock-keyhole" class="size-4" />

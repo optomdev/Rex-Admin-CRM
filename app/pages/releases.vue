@@ -58,39 +58,6 @@ const rolloutProgress = computed(() => currentRollouts.value.length
   ? Math.round((deployedCount.value / currentRollouts.value.length) * 100)
   : 0)
 
-const releaseStats = computed(() => {
-  const rows = releases.value ?? []
-  const latest = rows[0]
-  const withKnownIssues = rows.filter(release => release.known_issues).length
-  const trackedDeployments = rows.reduce((sum, release) => sum + (release.deployments?.length ?? 0), 0)
-
-  return [{
-    label: 'Imported',
-    value: rows.length.toString(),
-    detail: 'GitHub release records',
-    icon: 'i-lucide-tags',
-    color: 'primary' as const
-  }, {
-    label: 'Latest',
-    value: latest?.version ?? 'None',
-    detail: latest?.title ?? 'Run GitHub sync',
-    icon: 'i-lucide-git-branch',
-    color: 'secondary' as const
-  }, {
-    label: 'Deployed',
-    value: trackedDeployments.toString(),
-    detail: 'Tracked customer environments',
-    icon: 'i-lucide-cloud',
-    color: trackedDeployments ? 'success' as const : 'neutral' as const
-  }, {
-    label: 'Known Issues',
-    value: withKnownIssues.toString(),
-    detail: withKnownIssues ? 'Rollout notes required' : 'No issues recorded',
-    icon: withKnownIssues ? 'i-lucide-triangle-alert' : 'i-lucide-shield-check',
-    color: withKnownIssues ? 'warning' as const : 'success' as const
-  }]
-})
-
 function publishedLabel(date?: string | null) {
   if (!date) return 'Unpublished'
   return new Intl.DateTimeFormat('en-GB', {
@@ -364,31 +331,6 @@ async function saveReleaseDetails(event: FormSubmitEvent<ReleaseSchema>) {
     </template>
 
     <template #body>
-      <div class="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div
-          v-for="metric in releaseStats"
-          :key="metric.label"
-          class="rounded-lg border border-default bg-default p-4 shadow-xs"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm text-muted">
-                {{ metric.label }}
-              </p>
-              <p class="mt-2 truncate text-2xl font-semibold text-highlighted">
-                {{ metric.value }}
-              </p>
-              <p class="mt-1 truncate text-sm text-muted">
-                {{ metric.detail }}
-              </p>
-            </div>
-            <UBadge :color="metric.color" variant="subtle" square>
-              <UIcon :name="metric.icon" class="size-4" />
-            </UBadge>
-          </div>
-        </div>
-      </div>
-
       <div class="grid gap-4 xl:grid-cols-2">
         <UCard
           v-for="release in releases"

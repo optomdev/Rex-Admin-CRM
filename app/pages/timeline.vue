@@ -60,23 +60,6 @@ const filteredItems = computed(() => {
     : rows.filter(item => item.item_type === typeFilter.value)
 })
 
-const timelineStats = computed(() => {
-  const rows = customerScopedItems.value
-  return [{
-    label: 'Events',
-    value: rows.length.toString(),
-    detail: `${filteredItems.value.length} in view`,
-    icon: 'i-lucide-history',
-    color: 'primary' as const
-  }, {
-    label: 'Customers',
-    value: new Set(rows.map(item => item.customer_id)).size.toString(),
-    detail: 'With recorded activity',
-    icon: 'i-lucide-building-2',
-    color: 'secondary' as const
-  }]
-})
-
 const iconForType = (type: TimelineItem['item_type']) => {
   if (type === 'ticket') return 'i-lucide-life-buoy'
   if (type === 'message') return 'i-lucide-message-square'
@@ -182,31 +165,6 @@ async function addTimelineNote(event: FormSubmitEvent<NoteSchema>) {
 
     <template #body>
       <div class="mx-auto max-w-5xl">
-        <div class="mb-5 grid gap-3 sm:grid-cols-2">
-          <div
-            v-for="metric in timelineStats"
-            :key="metric.label"
-            class="rounded-lg border border-default bg-default p-4 shadow-xs"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm text-muted">
-                  {{ metric.label }}
-                </p>
-                <p class="mt-2 text-2xl font-semibold text-highlighted">
-                  {{ metric.value }}
-                </p>
-                <p class="mt-1 text-sm text-muted">
-                  {{ metric.detail }}
-                </p>
-              </div>
-              <UBadge :color="metric.color" variant="subtle" square>
-                <UIcon :name="metric.icon" class="size-4" />
-              </UBadge>
-            </div>
-          </div>
-        </div>
-
         <div class="space-y-4">
           <div
             v-for="item in filteredItems"

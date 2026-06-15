@@ -65,41 +65,6 @@ const filteredTickets = computed(() => {
   })
 })
 
-const openTickets = computed(() => (tickets.value ?? []).filter(ticket => !['resolved', 'closed'].includes(ticket.status)))
-const urgentTickets = computed(() => (tickets.value ?? []).filter(ticket => ['urgent', 'high'].includes(ticket.priority) && !['resolved', 'closed'].includes(ticket.status)))
-const waitingTickets = computed(() => (tickets.value ?? []).filter(ticket => ticket.status === 'waiting_on_customer'))
-const activeCustomerCount = computed(() => new Set((tickets.value ?? []).map(ticket => ticket.customer_id || ticket.customer_identifier).filter(Boolean)).size)
-
-const oldestOpenTicket = computed(() => {
-  return [...openTickets.value].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0]
-})
-
-const queueStats = computed(() => [{
-  label: 'Open queue',
-  value: openTickets.value.length.toString(),
-  detail: `${filteredTickets.value.length} in current view`,
-  icon: 'i-lucide-inbox',
-  tone: 'primary' as const
-}, {
-  label: 'High priority',
-  value: urgentTickets.value.length.toString(),
-  detail: urgentTickets.value.length ? 'Needs eyes first' : 'No fires waiting',
-  icon: 'i-lucide-siren',
-  tone: urgentTickets.value.length ? 'error' as const : 'success' as const
-}, {
-  label: 'Waiting',
-  value: waitingTickets.value.length.toString(),
-  detail: 'Paused on customer reply',
-  icon: 'i-lucide-hourglass',
-  tone: 'warning' as const
-}, {
-  label: 'Customers',
-  value: activeCustomerCount.value.toString(),
-  detail: oldestOpenTicket.value ? `Oldest open ${formatRelativeTime(oldestOpenTicket.value.created_at)}` : 'All clear',
-  icon: 'i-lucide-building-2',
-  tone: 'neutral' as const
-}])
-
 const currentTicket = computed(() => ticketDetail.value?.ticket ?? null)
 const visibleMessages = computed(() => ticketDetail.value?.messages ?? [])
 const visibleEvents = computed(() => ticketDetail.value?.events ?? [])
@@ -372,32 +337,7 @@ async function saveInternalNote() {
     </template>
 
     <template #body>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div
-          v-for="metric in queueStats"
-          :key="metric.label"
-          class="rounded-lg border border-default bg-default p-4 shadow-xs"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm text-muted">
-                {{ metric.label }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-highlighted">
-                {{ metric.value }}
-              </p>
-              <p class="mt-1 truncate text-sm text-muted">
-                {{ metric.detail }}
-              </p>
-            </div>
-            <UBadge :color="metric.tone" variant="subtle" square>
-              <UIcon :name="metric.icon" class="size-4" />
-            </UBadge>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-5 overflow-hidden rounded-lg border border-default bg-default shadow-xs">
+      <div class="overflow-hidden rounded-lg border border-default bg-default">
         <div class="grid gap-3 border-b border-default bg-elevated/40 px-4 py-3 text-xs font-medium uppercase text-muted xl:grid-cols-[1fr_15rem_12rem]">
           <span>Issue</span>
           <span>Customer</span>

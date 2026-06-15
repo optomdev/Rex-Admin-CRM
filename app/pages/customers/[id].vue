@@ -18,6 +18,13 @@ const { data: customerPricingItems } = await useAsyncData<CustomerPricingItem[]>
 const { data: releases } = await useAsyncData<Release[]>('customer-release-options', () => $fetch('/api/releases'))
 
 const editOpen = ref(false)
+const tab = ref('overview')
+
+const tabItems = [
+  { label: 'Overview', value: 'overview' },
+  { label: 'Billing', value: 'billing' },
+  { label: 'Activity', value: 'activity' }
+]
 
 const customer = computed(() => detail.value?.customer ?? null)
 const contacts = computed(() => detail.value?.contacts ?? [])
@@ -40,31 +47,19 @@ const monthlyBillingTotal = computed(() => billingLines.value.length
   ? billingLines.value.reduce((sum, line) => sum + lineTotal(line), 0)
   : customer.value?.recurring_monthly_amount ?? 0)
 
-const metrics = computed(() => [{
-  label: 'Monthly',
-  value: formatMoney(monthlyBillingTotal.value),
-  detail: billingLines.value.length ? `${billingLines.value.length} agreed line${billingLines.value.length === 1 ? '' : 's'}` : 'Recurring fallback',
-  icon: 'i-lucide-banknote',
-  color: 'primary' as const
-}, {
-  label: 'Open charges',
-  value: formatMoney(openChargeTotal.value),
-  detail: `${openCharges.value.length} unpaid item${openCharges.value.length === 1 ? '' : 's'}`,
-  icon: 'i-lucide-receipt',
-  color: openCharges.value.length ? 'warning' as const : 'success' as const
-}, {
-  label: 'Open tickets',
-  value: openTickets.value.length.toString(),
-  detail: urgentTicketCount.value ? `${urgentTicketCount.value} high priority` : 'No urgent pressure',
-  icon: 'i-lucide-life-buoy',
-  color: urgentTicketCount.value ? 'error' as const : openTickets.value.length ? 'warning' as const : 'neutral' as const
-}, {
-  label: 'Health',
-  value: `${customer.value?.health_score ?? 0}%`,
-  detail: customer.value ? formatStatusLabel(customer.value.status) : 'Loading',
-  icon: 'i-lucide-heart-pulse',
-  color: healthScoreColor(customer.value?.health_score ?? 0)
-}])
+const summaryLine = computed(() => {
+  const parts = [`${formatMoney(monthlyBillingTotal.value)}/mo`]
+
+  if (openCharges.value.length) {
+    parts.push(`${formatMoney(openChargeTotal.value)} unpaid`)
+  }
+  if (openTickets.value.length) {
+    parts.push(`${openTickets.value.length} open ticket${openTickets.value.length === 1 ? '' : 's'}`)
+  }
+  parts.push(`health ${customer.value?.health_score ?? 0}%`)
+
+  return parts.join(' · ')
+})
 
 const attentionItems = computed(() => {
   const items: Array<{
@@ -249,124 +244,88 @@ function onCustomerSaved(updated: CrmCustomer) {
       />
 
       <div v-else class="space-y-5">
-        <section class="rounded-lg border border-default bg-default p-4 shadow-xs">
+        <section>
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
+              <div class="flex flex-wrap items-center gap-3">
                 <h1 class="text-xl font-semibold text-highlighted">
                   {{ customer.name }}
                 </h1>
-                <UBadge :label="formatStatusLabel(customer.account_type)" color="neutral" variant="outline" />
                 <CustomersStatusMenu :customer="customer" size="xs" @updated="onStatusUpdated" />
               </div>
               <p class="mt-1 text-sm text-muted">
-                {{ customer.primary_domain || 'No domain recorded' }}
-                <span v-if="customer.customer_identifier"> - {{ customer.customer_identifier }}</span>
+                {{ customer.primary_domain || customer.customer_identifier || 'No domain recorded' }}
               </p>
-              <div v-if="customer.tags.length" class="mt-2 flex flex-wrap gap-1.5">
-                <UBadge
-                  v-for="tag in customer.tags"
-                  :key="tag"
-                  :label="tag"
-                  color="neutral"
-                  variant="outline"
-                  size="sm"
-                />
-              </div>
+              <p class="mt-1 text-sm text-muted">
+                {{ summaryLine }}
+              </p>
             </div>
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                v-if="primaryDeployment?.app_url"
-                :to="primaryDeployment.app_url"
-                target="_blank"
-                icon="i-lucide-external-link"
-                label="Open Rex"
-                color="neutral"
-                variant="subtle"
-              />
-              <UButton
-                icon="i-lucide-pencil"
-                label="Edit customer"
-                @click="editOpen = true"
-              />
-            </div>
+            <UButton
+              v-if="primaryDeployment?.app_url"
+              :to="primaryDeployment.app_url"
+              target="_blank"
+              icon="i-lucide-external-link"
+              label="Open Rex"
+              color="neutral"
+              variant="subtle"
+            />
           </div>
 
-          <p v-if="customer.commercial_notes" class="mt-4 text-sm text-muted">
+          <p v-if="customer.commercial_notes" class="mt-3 max-w-2xl text-sm text-muted">
             {{ customer.commercial_notes }}
           </p>
         </section>
 
-        <div v-if="attentionItems.length" class="grid gap-2 md:grid-cols-2">
-          <component
-            :is="item.to ? NuxtLinkComponent : 'div'"
-            v-for="item in attentionItems"
-            :key="item.title"
-            :to="item.to"
-            class="flex items-start gap-3 rounded-lg border border-default bg-default p-3 shadow-xs"
-            :class="item.to ? 'transition hover:ring-2 hover:ring-primary/20' : ''"
-          >
-            <UBadge :color="item.color" variant="subtle" square>
-              <UIcon :name="item.icon" class="size-4" />
-            </UBadge>
-            <div class="min-w-0">
-              <p class="font-medium text-highlighted">
-                {{ item.title }}
-              </p>
-              <p class="mt-0.5 text-sm text-muted">
-                {{ item.detail }}
-              </p>
-            </div>
-          </component>
-        </div>
+        <ul v-if="attentionItems.length" class="space-y-1.5">
+          <li v-for="item in attentionItems" :key="item.title">
+            <component
+              :is="item.to ? NuxtLinkComponent : 'div'"
+              :to="item.to"
+              class="flex items-center gap-2 text-sm"
+              :class="item.to ? 'hover:underline' : ''"
+            >
+              <UIcon
+                :name="item.icon"
+                class="size-4 shrink-0"
+                :class="item.color === 'error' ? 'text-error' : item.color === 'warning' ? 'text-warning' : 'text-muted'"
+              />
+              <span class="text-highlighted">{{ item.title }}</span>
+              <span class="truncate text-muted">— {{ item.detail }}</span>
+            </component>
+          </li>
+        </ul>
 
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div
-            v-for="metric in metrics"
-            :key="metric.label"
-            class="rounded-lg border border-default bg-default p-4 shadow-xs"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-sm text-muted">
-                  {{ metric.label }}
-                </p>
-                <p class="mt-2 text-2xl font-semibold text-highlighted">
-                  {{ metric.value }}
-                </p>
-                <p class="mt-1 truncate text-sm text-muted">
-                  {{ metric.detail }}
-                </p>
-              </div>
-              <UBadge :color="metric.color" variant="subtle" square>
-                <UIcon :name="metric.icon" class="size-4" />
-              </UBadge>
-            </div>
-          </div>
-        </div>
-
-        <CustomersDeploymentsCard
-          :customer-id="customer.id"
-          :deployments="deployments"
-          :releases="releases"
-          @changed="refresh()"
+        <UTabs
+          v-model="tab"
+          :items="tabItems"
+          :content="false"
+          color="neutral"
         />
 
-        <div class="grid gap-5 xl:grid-cols-2">
-          <CustomersContactsCard
+        <template v-if="tab === 'overview'">
+          <CustomersDeploymentsCard
             :customer-id="customer.id"
-            :contacts="contacts"
+            :deployments="deployments"
+            :releases="releases"
             @changed="refresh()"
           />
-          <CustomersBranchesCard
-            :customer-id="customer.id"
-            :branches="branches"
-            @changed="refresh()"
-          />
-        </div>
 
-        <div class="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-          <section class="rounded-lg border border-default bg-default p-4 shadow-xs">
+          <div class="grid gap-5 xl:grid-cols-2">
+            <CustomersContactsCard
+              :customer-id="customer.id"
+              :contacts="contacts"
+              @changed="refresh()"
+            />
+            <CustomersBranchesCard
+              :customer-id="customer.id"
+              :branches="branches"
+              @changed="refresh()"
+            />
+          </div>
+        </template>
+
+        <template v-if="tab === 'billing'">
+          <section class="rounded-lg border border-default bg-default p-4">
             <div class="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h2 class="font-semibold text-highlighted">
@@ -451,8 +410,10 @@ function onCustomerSaved(updated: CrmCustomer) {
               No charges recorded yet.
             </p>
           </section>
+        </template>
 
-          <section class="rounded-lg border border-default bg-default p-4 shadow-xs">
+        <template v-if="tab === 'activity'">
+          <section class="rounded-lg border border-default bg-default p-4">
             <div class="mb-3 flex items-center justify-between gap-3">
               <h2 class="font-semibold text-highlighted">
                 Recent Work
@@ -536,51 +497,51 @@ function onCustomerSaved(updated: CrmCustomer) {
               </div>
             </div>
           </section>
-        </div>
 
-        <section class="rounded-lg border border-default bg-default p-4 shadow-xs">
-          <div class="mb-3 flex items-center justify-between gap-3">
-            <h2 class="font-semibold text-highlighted">
-              Timeline
-            </h2>
-            <UButton
-              :to="`/timeline?customer=${customer.id}`"
-              label="Full timeline"
-              icon="i-lucide-arrow-right"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-            />
-          </div>
-          <div v-if="timeline.length" class="divide-y divide-default">
-            <div v-for="item in timeline" :key="item.id" class="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-              <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-elevated">
-                <UIcon :name="timelineIcon(item.item_type)" class="size-4 text-muted" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-baseline justify-between gap-3">
-                  <p class="font-medium text-highlighted">
-                    {{ item.title }}
-                  </p>
-                  <UTooltip :text="new Date(item.occurred_at).toLocaleString('en-GB')">
-                    <span class="shrink-0 text-xs text-muted">{{ formatRelativeTime(item.occurred_at) }}</span>
-                  </UTooltip>
+          <section class="rounded-lg border border-default bg-default p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h2 class="font-semibold text-highlighted">
+                Timeline
+              </h2>
+              <UButton
+                :to="`/timeline?customer=${customer.id}`"
+                label="Full timeline"
+                icon="i-lucide-arrow-right"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+              />
+            </div>
+            <div v-if="timeline.length" class="divide-y divide-default">
+              <div v-for="item in timeline" :key="item.id" class="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                <div class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-elevated">
+                  <UIcon :name="timelineIcon(item.item_type)" class="size-4 text-muted" />
                 </div>
-                <p v-if="item.body" class="mt-0.5 text-sm text-muted">
-                  {{ item.body }}
-                </p>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <p class="font-medium text-highlighted">
+                      {{ item.title }}
+                    </p>
+                    <UTooltip :text="new Date(item.occurred_at).toLocaleString('en-GB')">
+                      <span class="shrink-0 text-xs text-muted">{{ formatRelativeTime(item.occurred_at) }}</span>
+                    </UTooltip>
+                  </div>
+                  <p v-if="item.body" class="mt-0.5 text-sm text-muted">
+                    {{ item.body }}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-          <UAlert
-            v-else
-            icon="i-lucide-history"
-            color="neutral"
-            variant="subtle"
-            title="No customer activity yet"
-            description="Tickets, onboarding, charges, and release rollout changes will appear here."
-          />
-        </section>
+            <UAlert
+              v-else
+              icon="i-lucide-history"
+              color="neutral"
+              variant="subtle"
+              title="No customer activity yet"
+              description="Tickets, onboarding, charges, and release rollout changes will appear here."
+            />
+          </section>
+        </template>
 
         <CustomersEditCustomerModal
           v-model:open="editOpen"

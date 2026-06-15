@@ -56,41 +56,6 @@ const checklistProgress = computed(() => currentTasks.value.length
   ? Math.round((completedTasks.value / currentTasks.value.length) * 100)
   : 0)
 
-const onboardingStats = computed(() => {
-  const rows = projects.value ?? []
-  const blocked = rows.filter(project => project.status === 'blocked' || Boolean(project.blockers)).length
-  const ready = rows.filter(project => project.readiness_score >= 80).length
-  const averageReadiness = rows.length
-    ? Math.round(rows.reduce((sum, project) => sum + project.readiness_score, 0) / rows.length)
-    : 0
-
-  return [{
-    label: 'Projects',
-    value: rows.length.toString(),
-    detail: 'Launch workstreams',
-    icon: 'i-lucide-rocket',
-    color: 'primary' as const
-  }, {
-    label: 'Readiness',
-    value: `${averageReadiness}%`,
-    detail: 'Average launch confidence',
-    icon: 'i-lucide-gauge',
-    color: averageReadiness >= 75 ? 'success' as const : 'warning' as const
-  }, {
-    label: 'Ready Soon',
-    value: ready.toString(),
-    detail: 'At or above 80%',
-    icon: 'i-lucide-circle-check',
-    color: 'success' as const
-  }, {
-    label: 'Blockers',
-    value: blocked.toString(),
-    detail: blocked ? 'Needs follow-up' : 'Nothing blocking',
-    icon: blocked ? 'i-lucide-octagon-alert' : 'i-lucide-shield-check',
-    color: blocked ? 'warning' as const : 'success' as const
-  }]
-})
-
 function statusColor(projectStatus: OnboardingProject['status']) {
   if (projectStatus === 'live') return 'success'
   if (projectStatus === 'ready_for_go_live') return 'success'
@@ -274,40 +239,6 @@ async function updateTaskStatus(task: OnboardingTask, taskStatus: TaskStatus) {
     </template>
 
     <template #body>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div
-          v-for="metric in onboardingStats"
-          :key="metric.label"
-          class="rounded-lg border border-default bg-default p-4 shadow-xs"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm text-muted">
-                {{ metric.label }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-highlighted">
-                {{ metric.value }}
-              </p>
-              <p class="mt-1 truncate text-sm text-muted">
-                {{ metric.detail }}
-              </p>
-            </div>
-            <UBadge :color="metric.color" variant="subtle" square>
-              <UIcon :name="metric.icon" class="size-4" />
-            </UBadge>
-          </div>
-        </div>
-      </div>
-
-      <UAlert
-        class="mt-5"
-        icon="i-lucide-clipboard-check"
-        color="primary"
-        variant="subtle"
-        title="Compliance-led onboarding"
-        description="New projects generate go-live tasks from the RexApp compliance pack: Supabase evidence, processors, RLS/RBAC, support logging, SMS/email minimisation, backups, incidents, and IG/DPO sign-off."
-      />
-
       <div class="space-y-4">
         <UCard
           v-for="project in projects"

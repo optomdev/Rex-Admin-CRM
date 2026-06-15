@@ -41,48 +41,6 @@ const filteredDeployments = computed(() => {
   })
 })
 
-const activeDeployments = computed(() => (deployments.value ?? []).filter(deployment => deployment.status === 'active'))
-const needsAttention = computed(() => (deployments.value ?? []).filter((deployment) => {
-  return ['degraded', 'down'].includes(deployment.health_status)
-    || ['error', 'maintenance'].includes(deployment.status)
-    || (!deployment.deployed_release_id && !deployment.deployed_version)
-}))
-const linkedVersions = computed(() => (deployments.value ?? []).filter(deployment => deployment.deployed_release_id || deployment.deployed_version || deployment.git_tag || deployment.git_commit))
-const lastSeenCount = computed(() => (deployments.value ?? []).filter(deployment => deployment.last_seen_at).length)
-const trackedDevOps = computed(() => (deployments.value ?? []).filter(deployment => deployment.app_provider && deployment.git_branch && deployment.git_commit))
-
-const metrics = computed(() => [{
-  label: 'Deployments',
-  value: `${deployments.value?.length ?? 0}`,
-  detail: `${activeDeployments.value.length} active`,
-  icon: 'i-lucide-cloud',
-  color: 'primary' as const
-}, {
-  label: 'Attention',
-  value: `${needsAttention.value.length}`,
-  detail: needsAttention.value.length ? 'Review health or version links' : 'No obvious deployment gaps',
-  icon: needsAttention.value.length ? 'i-lucide-triangle-alert' : 'i-lucide-shield-check',
-  color: needsAttention.value.length ? 'warning' as const : 'success' as const
-}, {
-  label: 'Version Linked',
-  value: `${linkedVersions.value.length}`,
-  detail: 'Release, tag, or commit attached',
-  icon: 'i-lucide-git-branch',
-  color: linkedVersions.value.length ? 'success' as const : 'neutral' as const
-}, {
-  label: 'DevOps Tracked',
-  value: `${trackedDevOps.value.length}`,
-  detail: 'Provider, branch, and commit recorded',
-  icon: 'i-lucide-git-pull-request',
-  color: trackedDevOps.value.length ? 'success' as const : 'neutral' as const
-}, {
-  label: 'Seen',
-  value: `${lastSeenCount.value}`,
-  detail: 'Has webhook activity signal',
-  icon: 'i-lucide-radar',
-  color: lastSeenCount.value ? 'success' as const : 'neutral' as const
-}])
-
 function statusColor(deploymentStatus: CustomerDeployment['status']): UiColor {
   if (deploymentStatus === 'active') return 'success'
   if (deploymentStatus === 'provisioning' || deploymentStatus === 'maintenance') return 'warning'
@@ -154,32 +112,7 @@ function accountTypeColor(accountType?: CustomerAccountType): UiColor {
     </template>
 
     <template #body>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <div
-          v-for="metric in metrics"
-          :key="metric.label"
-          class="rounded-lg border border-default bg-default p-4 shadow-xs"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm text-muted">
-                {{ metric.label }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-highlighted">
-                {{ metric.value }}
-              </p>
-              <p class="mt-1 truncate text-sm text-muted">
-                {{ metric.detail }}
-              </p>
-            </div>
-            <UBadge :color="metric.color" variant="subtle" square>
-              <UIcon :name="metric.icon" class="size-4" />
-            </UBadge>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-5 divide-y divide-default rounded-lg border border-default">
+      <div class="divide-y divide-default rounded-lg border border-default">
         <div
           v-for="deployment in filteredDeployments"
           :key="deployment.id"
