@@ -10,9 +10,9 @@ useHead({
     { key: 'theme-color', name: 'theme-color', content: color }
   ],
   link: [
-    { rel: 'icon', type: 'image/png', href: '/favicon.png?v=20261101' },
-    { rel: 'shortcut icon', href: '/favicon.ico?v=20261101' },
-    { rel: 'apple-touch-icon', href: '/favicon.png?v=20261101' }
+    { rel: 'icon', type: 'image/png', href: '/favicon.png?v=20261101-teal' },
+    { rel: 'shortcut icon', href: '/favicon.ico?v=20261101-teal' },
+    { rel: 'apple-touch-icon', href: '/favicon.png?v=20261101-teal' }
   ],
   htmlAttrs: {
     lang: 'en'
