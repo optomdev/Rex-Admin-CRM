@@ -10,7 +10,9 @@ useHead({
     { key: 'theme-color', name: 'theme-color', content: color }
   ],
   link: [
-    { rel: 'icon', href: '/favicon.ico' }
+    { rel: 'icon', type: 'image/png', href: '/favicon.png?v=20261101' },
+    { rel: 'shortcut icon', href: '/favicon.ico?v=20261101' },
+    { rel: 'apple-touch-icon', href: '/favicon.png?v=20261101' }
   ],
   htmlAttrs: {
     lang: 'en'
