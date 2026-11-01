@@ -54,7 +54,7 @@ const signIn = async () => {
 
   toast.add({
     title: 'Signed in',
-    description: 'Welcome back to Rex Admin CRM.',
+    description: 'Welcome back to Rex Hub.',
     color: 'success',
     icon: 'i-lucide-check'
   })
@@ -68,12 +68,12 @@ const signIn = async () => {
     <UCard class="w-full max-w-md" :ui="{ root: 'rounded-lg', body: 'p-6 sm:p-7' }">
       <form class="space-y-5" @submit.prevent="signIn">
         <div class="flex items-center gap-3">
-          <div class="flex size-10 items-center justify-center rounded-md bg-primary text-inverted">
-            <UIcon name="i-lucide-glasses" class="size-5" />
+          <div class="flex h-10 w-20 shrink-0 items-center justify-center rounded-md bg-[#1c222d] px-2">
+            <img src="/brand/rex-email-logo-v3.png" alt="" class="w-full hue-rotate-[260deg]">
           </div>
           <div>
             <h1 class="text-lg font-semibold text-highlighted">
-              Rex Admin CRM
+              Rex Hub
             </h1>
             <p class="text-sm text-muted">
               Private admin sign in

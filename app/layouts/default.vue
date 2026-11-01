@@ -165,12 +165,12 @@ const groups = computed(() => [{
     >
       <template #header="{ collapsed }">
         <NuxtLink to="/" class="flex min-h-12 items-center gap-3 px-2">
-          <div class="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-inverted">
-            <UIcon name="i-lucide-glasses" class="size-5" />
+          <div class="flex h-9 shrink-0 items-center justify-center rounded-md bg-[#1c222d] px-1.5" :class="collapsed ? 'w-9' : 'w-16'">
+            <img src="/brand/rex-email-logo-v3.png" alt="" class="w-full hue-rotate-[260deg]">
           </div>
           <div v-if="!collapsed" class="min-w-0">
             <p class="truncate text-sm font-semibold text-highlighted">
-              Rex Admin CRM
+              Rex Hub
             </p>
             <p class="truncate text-xs text-muted">
               Private ops console
